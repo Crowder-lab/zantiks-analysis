@@ -248,6 +248,95 @@ class StartleResponse(Assay):
     def arenas_per_group(self) -> int | None:
         return None
 
+    def make_tabular(self, df: pl.DataFrame) -> pl.DataFrame:
+        pattern = re.compile(r"A(\d+)")
+        df = df.unpivot(
+            index=["RUNTIME", "PHASE"],
+            on=[col for col in df.columns if re.match(pattern, col)],
+            variable_name="ARENA_ID",
+            value_name="DISTANCE",
+        )
+        df = df.with_columns(
+            [
+                pl.col("ARENA_ID")
+                .str.extract(r"A(\d+)", 1)
+                .cast(pl.Int32)
+                .alias("ARENA"),
+            ]
+        )
+        df = df.drop("ARENA_ID")
+
+        zero_arenas = (
+            df.group_by("ARENA")
+            .agg(pl.sum("DISTANCE").alias("TOTAL_DISTANCE"))
+            .filter(pl.col("TOTAL_DISTANCE") == 0)
+            .select("ARENA")
+        )
+        if not zero_arenas.is_empty():
+            zero_arena_list = zero_arenas["ARENA"].to_list()
+            result = df.filter(~pl.col("ARENA").is_in(zero_arena_list))
+        else:
+            result = df
+
+        result = result.select(("RUNTIME", "PHASE", "ARENA", "DISTANCE"))
+        return result
+
+
+class StartleResponseXy(Assay):
+    @property
+    def name(self) -> str:
+        return "startle_response"
+
+    @property
+    def pretty_name(self) -> str:
+        return "Startle Response + Pre-pulse Inhibition"
+
+    @property
+    def age(self) -> str:
+        return "6dpf"
+
+    @property
+    def total_arenas(self) -> int:
+        return 48
+
+    @property
+    def arenas_per_group(self) -> int | None:
+        return None
+
+    def make_tabular(self, df: pl.DataFrame) -> pl.DataFrame:
+        pattern = re.compile(r"([XY])_A(\d+)")
+        df = df.unpivot(
+            index="RUNTIME",
+            on=[col for col in df.columns if re.match(pattern, col)],
+            variable_name="AXIS_ARENA_ID",
+            value_name="POSITION",
+        )
+        df = df.with_columns(
+            [
+                pl.col("AXIS_ARENA_ID").str.extract(r"([XY])", 1).alias("AXIS"),
+                pl.col("AXIS_ARENA_ID")
+                .str.extract(r"A(\d+)", 1)
+                .cast(pl.Int32)
+                .alias("ARENA"),
+            ]
+        )
+        df = df.drop("AXIS_ARENA_ID")
+
+        zero_arenas = (
+            df.group_by("ARENA")
+            .agg(pl.sum("POSITION").alias("TOTAL_POSITION"))
+            .filter(pl.col("TOTAL_POSITION") == 0)
+            .select("ARENA")
+        )
+        if not zero_arenas.is_empty():
+            zero_arena_list = zero_arenas["ARENA"].to_list()
+            result = df.filter(~pl.col("ARENA").is_in(zero_arena_list))
+        else:
+            result = df
+
+        result = result.select(("RUNTIME", "ARENA", "AXIS", "POSITION"))
+        return result
+
 
 class Ymaze15(Assay):
     @property
@@ -324,6 +413,12 @@ class ZantiksFile:
         "ymaze_4": Ymaze4,
     }
 
+    def _startle_response_picker(self):
+        if self.is_xy:
+            return StartleResponseXy
+        else:
+            return StartleResponse
+
     def __init__(self, path: str):
         self.path = path
         parts = path.split("/")
@@ -335,12 +430,12 @@ class ZantiksFile:
         self.groups = self._parse_groups(parts[-2])
         if not all(char in {"A", "B", "C", "D"} for char in self.groups):
             self.groups = None
+        self.is_xy = "xy" in self.filename or "XY" in self.filename
         self.assay_type: Assay = self.assay_types[filename_parts[0]]()
         self.year = filename_parts[1][:4]
         self.month = filename_parts[1][4:6]
         self.day = filename_parts[1][6:8]
 
-        self.is_xy = "xy" in self.filename or "XY" in self.filename
         self._parse_config()
 
     def __repr__(self):

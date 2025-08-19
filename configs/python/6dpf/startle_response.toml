@@ -1,0 +1,17 @@
+[data]
+files_prefix = "data/"
+files = [
+    "2024/12/09/zantiks_a/startle_response-20241209T105820-xy_position.csv",
+    "2024/12/09/zantiks_b/startle_response-20241209T105839-xy_position.csv",
+]
+assay_names = ["startle response/pre-pulse inhibition", "startle response/pre-pulse inhibition"]
+wildtype_file = "configs/wildtype/startle_response.toml"
+
+[genotypes]
+files_prefix = "data/"
+files = ["2024/12/09/genotypes.csv", "2024/12/09/genotypes.csv"]
+counting_directions = ["down", "down"]
+
+[fish_used]
+files_prefix = "templates/fish_used/zantiks_"
+files = ["left.txt", "right.txt"]
