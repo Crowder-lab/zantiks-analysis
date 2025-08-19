@@ -1,26 +1,22 @@
 [data]
-files_prefix = "data/2025/"
+files_prefix = "data/2025/08/10/"
 files = [
-    "05/05/sleep/a/sleep-20250505T075445.csv",
-    "05/05/sleep/b/sleep-20250505T075459.csv",
-    "06/11/sleep/a/sleep-20250603T075441.csv",
+    "zantiks_a/sleep-20250810T075451.csv",
+    "zantiks_b/sleep-20250810T075515.csv",
 ]
 assay_names = [
-    "sleep",
     "sleep",
     "sleep",
 ]
 wildtype_file = "configs/wildtype/sleep.toml"
 
 [genotypes]
-files_prefix = "data/2025/"
+files_prefix = "data/2025/08/10/genotypes.csv"
 files = [
-    "05/05/genotypes.csv",
-    "05/05/genotypes.csv",
-    "06/11/genotypes.csv",
+    "",
+    "",
 ]
 counting_directions = [
-    "down",
     "down",
     "down",
 ]
@@ -30,7 +26,6 @@ files_prefix = "templates/fish_used/"
 files = [
     "zantiks_left.txt",
     "zantiks_right.txt",
-    "zantiks_left.txt",
 ]
 
 [output]

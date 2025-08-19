@@ -1,45 +1,30 @@
 [data]
-files_prefix = "data/"
+files_prefix = "data/2025/08/10/"
 files = [
-    "2025/05/05/sleep/a/sleep-20250505T075445.csv",
-    "2025/05/05/sleep/b/sleep-20250505T075459.csv",
-    "2025/06/11/sleep/a/sleep-20250603T075441.csv",
-    "2025/04/02/zantiks_a/sleep-20250401T075448.csv",
-    "2025/04/02/zantiks_b/sleep-20250401T075504.csv",
+    "zantiks_a/sleep-20250810T075451.csv",
+    "zantiks_b/sleep-20250810T075515.csv",
 ]
 assay_names = [
-    "sleep",
-    "sleep",
-    "sleep",
     "sleep",
     "sleep",
 ]
 
 [genotypes]
-files_prefix = "data/"
+files_prefix = "data/2025/08/10/genotypes.csv"
 files = [
-    "2025/05/05/genotypes.csv",
-    "2025/05/05/genotypes.csv",
-    "2025/06/11/genotypes.csv",
-    "2025/04/02/genotypes.csv",
-    "2025/04/02/genotypes.csv",
+    "",
+    "",
 ]
 counting_directions = [
-    "down",
-    "down",
-    "down",
     "down",
     "down",
 ]
 
 [fish_used]
-files_prefix = "templates/fish_used/zantiks_"
+files_prefix = "templates/fish_used/"
 files = [
-    "left.txt",
-    "right.txt",
-    "left.txt",
-    "left.txt",
-    "right.txt",
+    "zantiks_left.txt",
+    "zantiks_right.txt",
 ]
 
 [output]
