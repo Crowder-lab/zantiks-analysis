@@ -100,7 +100,8 @@ load_genotypes <- function(genotyping_file, fish_used_file, counting_direction) 
 
   # read in data
   genotype_data <- read_csv(genotyping_file) %>%
-    select(genotyping_well = Well, genotype = Cluster, clutch = Clutch) %>%
+    # select(genotyping_well = Well, genotype = Cluster, clutch = Clutch) %>%
+    select(genotyping_well = Well, genotype = Cluster) %>%
     mutate(row = str_extract(genotyping_well, "[A-H]"), column = as.integer(str_extract(genotyping_well, "[0-9]+"))) %>%
     mutate(genotyping_well = paste0(row, sprintf("%02d", column))) %>%
     filter(genotyping_well %in% wells_used)
@@ -126,6 +127,8 @@ attach_genotypes <- function(data, genotypes) {
   data %>%
     left_join(genotypes, by = join_by(ARENA == row_id)) %>%
     filter(genotype %in% c("WT", "HET", "HOM")) %>%
-    arrange(clutch, genotype) %>%
-    select(clutch, genotype, names(data))
+    # arrange(clutch, genotype) %>%
+    # select(clutch, genotype, names(data))
+    arrange(genotype) %>%
+    select(genotype, names(data))
 }
