@@ -55,7 +55,7 @@ find_data <- function(assay_name, suffixes_needed) {
   }
   main_data <- analyze_folder(main_dir, suffixes_needed, TRUE)
   # Get wildtype data files
-  wildtype_dir <- file.path("data", "wildtype", assay_name)
+  wildtype_dir <- file.path("data", assay_name, "wildtype")
   wildtype_data <- analyze_folder(wildtype_dir, suffixes_needed, FALSE)
 
 
