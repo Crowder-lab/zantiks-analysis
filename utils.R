@@ -127,8 +127,6 @@ attach_genotypes <- function(data, genotypes) {
   data %>%
     left_join(genotypes, by = join_by(ARENA == row_id)) %>%
     filter(genotype %in% c("WT", "HET", "HOM")) %>%
-    # arrange(clutch, genotype) %>%
-    # select(clutch, genotype, names(data))
     arrange(genotype) %>%
     select(genotype, names(data))
 }
