@@ -1,11 +1,5 @@
 #!/usr/bin/env Rscript
 
-# Matching Hindges & Read
-#- prepulse looks "backwards"
-#- remove wells with 0 mm locomotion +/- 500 ms around the startle vibration
-#- $\%PPI = \frac{\text{Startle alone} −  \text{Prepulse \& Startle}}{\text{Startle alone}} * 100$
-#-  “Startle alone” was the mean locomotion at +100 ms in startle alone trials and “Prepulse/Startle” is the mean locomotion at +100 ms in prepulse/startle trials
-
 # load library
 source("utils.R")
 
@@ -14,6 +8,7 @@ suffixes <- list(genotypes = "_genotypes.csv", fish_used = "_fish.txt", xy = "_x
 all_files <- find_data("startle_response", suffixes)
 main_files <- all_files[["main_files"]]
 wildtype_files <- all_files[["wildtype_files"]]
+wildtype_exists <- length(wildtype_files) != 0
 
 # analysis function
 analyze <- function(files) {
@@ -99,8 +94,19 @@ analyze <- function(files) {
 
       # add to list to combine later
       analyzed_data[[startle_type]][[prefix_name]] <- final_xy
+      analyzed_data[["ppi"]][[prefix_name]][[startle_type]] <- final_xy %>%
+        group_by(ARENA) %>%
+        summarise(genotype = first(genotype), !!sym(startle_type) := distance_step[relative_bin == 200])
     }
-  }
+
+    startle_at_200ms <- analyzed_data[["ppi"]][[prefix_name]][["STARTLE"]]
+    prepulse_at_200ms <- analyzed_data[["ppi"]][[prefix_name]][["PREPULSE"]]
+    combined_at_200ms <- startle_at_200ms %>%
+      inner_join(prepulse_at_200ms, by = join_by(ARENA, genotype)) %>%
+      mutate(percent_ppi = (STARTLE - PREPULSE) / STARTLE * 100) %>%
+      filter(percent_ppi <= 100 & percent_ppi >= 0) # also gets rid of infinites and NaNs
+    analyzed_data[["ppi"]][[prefix_name]] <- combined_at_200ms
+    }
 
   analyzed_data
 }
@@ -127,13 +133,24 @@ for (startle_type in c("STARTLE", "PREPULSE")) {
     write_csv(prism_xy, file.path("data", "startle_response", "output", paste0(prefix_name, "_", startle_type, ".csv")))
   }
 }
+for (prefix_name in names(main_files)) {
+  df <- main_data[["ppi"]][[prefix_name]]
+  prism_df <- df %>%
+    select(ARENA, genotype, percent_ppi) %>%
+    pivot_wider(names_from = genotype, values_from = percent_ppi) %>%
+    select(WT, HET, HOM)
 
-if (length(wildtype_files) != 0) {
-  wildtype_data <- analyze(wildtype_files)
+  # save the data
+  write_csv(prism_df, file.path("data", "startle_response", "output", paste0(prefix_name, "_PERCENT-PPI.csv")))
 }
 
+# include wildtype as well
+if (wildtype_exists) {
+  wildtype_data <- analyze(wildtype_files)
+}
 for (startle_type in c("STARTLE", "PREPULSE")) {
-  if (length(wildtype_files) != 0) {
+  # if wildtype data exists
+  if (wildtype_exists) {
     # remove main data from wildtype if present
     # also remove non-WT genotypes
     wildtype_only_names <- setdiff(names(wildtype_files), names(main_files))
@@ -145,6 +162,7 @@ for (startle_type in c("STARTLE", "PREPULSE")) {
     combined_main <- bind_rows(main_data[[startle_type]], .id = "id")
     all_data <- bind_rows(combined_wildtype, combined_main)
     all_names <- union(names(wildtype_files), names(main_files))
+  # if there's no wildtype data
   } else {
     all_data <- bind_rows(main_data[[startle_type]], .id = "id")
     all_names <- names(main_files)
@@ -170,3 +188,20 @@ for (startle_type in c("STARTLE", "PREPULSE")) {
 
   write_csv(combined_data, file.path("data", "startle_response", "output", paste0("combined_", startle_type, ".csv")))
 }
+if (wildtype_exists) {
+  combined_wildtype <- bind_rows(wildtype_data[["ppi"]], .id = "id") %>%
+    filter(genotype == "WT") %>%
+    filter(id %in% wildtype_only_names)
+  combined_main <- bind_rows(main_data[["ppi"]], .id = "id")
+
+  all_data <- bind_rows(combined_wildtype, combined_main)
+  all_names <- union(names(wildtype_files), names(main_files))
+} else {
+  all_data <- bind_rows(main_data[["ppi"]], .id = "id")
+  all_names <- names(main_files)
+}
+combined_data <- all_data %>%
+  select(id, ARENA, genotype, percent_ppi) %>%
+  pivot_wider(names_from = genotype, values_from = percent_ppi) %>%
+  select(WT, HET, HOM)
+write_csv(combined_data, file.path("data", "startle_response", "output", "combined_PERCENT-PPI.csv"))
