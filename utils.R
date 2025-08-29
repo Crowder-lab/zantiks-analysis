@@ -130,3 +130,16 @@ attach_genotypes <- function(data, genotypes) {
     arrange(genotype) %>%
     select(genotype, names(data))
 }
+
+
+add_numbering <- function(data, id_values, grouping_column) {
+  data %>%
+    mutate(id_num = match(id, id_values)) %>% # convert each id to int
+    group_by(!!sym(grouping_column)) %>%
+    arrange(id_num, ARENA) %>%
+    mutate(unique_id = 96 * (id_num - 1) + ARENA - 1) %>% # both 1-indexed
+    mutate(numbering = match(unique_id, sort(unique(unique_id)))) %>%
+    ungroup() %>%
+    select(-c(id, ARENA, id_num, unique_id)) %>%
+    rename(ARENA = numbering)
+}
