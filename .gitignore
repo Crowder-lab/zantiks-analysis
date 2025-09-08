@@ -4,6 +4,8 @@ data/
 *.csv
 !templates/*
 runs/
+.Rproj.user
+analysis.Rproj
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
