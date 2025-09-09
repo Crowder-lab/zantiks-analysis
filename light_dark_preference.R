@@ -45,7 +45,7 @@ analyze <- function(files) {
       mutate(percent_time = VALUE / 60 * 100) %>%
       mutate(minute = BIN_NUM) %>%
       select(genotype, ARENA, minute, percent_time)
-    analyzed_data[["PERCENT_DARK_TIME"]][[prefix_name]] <- dark_time_data
+    analyzed_data[["percent dark time"]][[prefix_name]] <- dark_time_data
 
     # light and dark distance
     distance_data <- long_data %>%
@@ -53,7 +53,7 @@ analyze <- function(files) {
       group_by(ARENA, ZONE) %>%
       summarise(genotype = first(genotype), ZONE = first(ZONE), total_distance = sum(VALUE)) %>%
       ungroup()
-    analyzed_data[["TOTAL_DISTANCE"]][[prefix_name]] <- distance_data
+    analyzed_data[["total distance"]][[prefix_name]] <- distance_data
 
     # light and dark time
     time_data <- long_data %>%
@@ -61,7 +61,7 @@ analyze <- function(files) {
       group_by(ARENA, ZONE) %>%
       summarise(genotype = first(genotype), ZONE = first(ZONE), total_time = sum(VALUE)) %>%
       ungroup()
-    analyzed_data[["TOTAL_TIME"]][[prefix_name]] <- time_data
+    analyzed_data[["total time"]][[prefix_name]] <- time_data
   }
 
   analyzed_data
@@ -133,15 +133,15 @@ prism_total_time <- function(df) {
 main_data <- analyze(main_files)
 for (prefix_name in names(main_files)) {
   # percent time spent in dark zone
-  prism_data <- prism_percent_dark_time(main_data[["PERCENT_DARK_TIME"]][[prefix_name]])
+  prism_data <- prism_percent_dark_time(main_data[["percent dark time"]][[prefix_name]])
   write_csv(prism_data, file.path("data", "light_dark_preference", "output", paste0(prefix_name, "_PERCENT-DARK-TIME.csv")))
 
   # light and dark distance
-  prism_data <- prism_total_distance(main_data[["TOTAL_DISTANCE"]][[prefix_name]])
+  prism_data <- prism_total_distance(main_data[["total distance"]][[prefix_name]])
   write_csv(prism_data, file.path("data", "light_dark_preference", "output", paste0(prefix_name, "_TOTAL-DISTANCE.csv")))
 
   # light and dark time
-  prism_data <- prism_total_time(main_data[["TOTAL_TIME"]][[prefix_name]])
+  prism_data <- prism_total_time(main_data[["total time"]][[prefix_name]])
   write_csv(prism_data, file.path("data", "light_dark_preference", "output", paste0(prefix_name, "_TOTAL-TIME.csv")))
 }
 
@@ -153,36 +153,36 @@ if (wildtype_exists) {
   all_names <- union(names(wildtype_files), names(main_files))
 
   # percent time spent in dark zone
-  combined_wildtype <- bind_rows(wildtype_data[["PERCENT_DARK_TIME"]], .id = "id") %>%
+  combined_wildtype <- bind_rows(wildtype_data[["percent dark time"]], .id = "id") %>%
     filter(genotype == "WT") %>%
     filter(id %in% wildtype_only_names)
-  combined_main <- bind_rows(main_data[["PERCENT_DARK_TIME"]], .id = "id")
+  combined_main <- bind_rows(main_data[["percent dark time"]], .id = "id")
   all_percent_dark_time_data <- bind_rows(combined_wildtype, combined_main)
 
   # light and dark distance
-  combined_wildtype <- bind_rows(wildtype_data[["TOTAL_DISTANCE"]], .id = "id") %>%
+  combined_wildtype <- bind_rows(wildtype_data[["total distance"]], .id = "id") %>%
     filter(genotype == "WT") %>%
     filter(id %in% wildtype_only_names)
-  combined_main <- bind_rows(main_data[["TOTAL_DISTANCE"]], .id = "id")
+  combined_main <- bind_rows(main_data[["total distance"]], .id = "id")
   all_total_distance_data <- bind_rows(combined_wildtype, combined_main)
 
   # light and dark time
-  combined_wildtype <- bind_rows(wildtype_data[["TOTAL_TIME"]], .id = "id") %>%
+  combined_wildtype <- bind_rows(wildtype_data[["total time"]], .id = "id") %>%
     filter(genotype == "WT") %>%
     filter(id %in% wildtype_only_names)
-  combined_main <- bind_rows(main_data[["TOTAL_TIME"]], .id = "id")
+  combined_main <- bind_rows(main_data[["total time"]], .id = "id")
   all_total_time_data <- bind_rows(combined_wildtype, combined_main)
 } else {
   all_names <- names(main_files)
 
   # percent time spent in dark zone
-  all_percent_dark_time_data <- bind_rows(bind_rows(main_data[["PERCENT_DARK_TIME"]], .id = "id"))
+  all_percent_dark_time_data <- bind_rows(main_data[["percent dark time"]], .id = "id")
 
   # light and dark distance
-  all_total_distance_data <- bind_rows(bind_rows(main_data[["TOTAL_DISTANCE"]], .id = "id"))
+  all_total_distance_data <- bind_rows(main_data[["total distance"]], .id = "id")
 
   # light and dark time
-  all_total_time_data <- bind_rows(bind_rows(main_data[["TOTAL_TIME"]], .id = "id"))
+  all_total_time_data <- bind_rows(main_data[["total time"]], .id = "id")
 }
 
 
