@@ -1,5 +1,9 @@
 library(tidyverse)
 
+DEFAULT_GENOTYPES <- factor(c("WT", "HET", "HOM"), levels = c("WT", "HET", "HOM"))
+PRISM_MAX_SEQUENCE <- 1:256
+
+
 find_data <- function(assay_name, suffixes_needed) {
   # Validate inputs
   if (missing(assay_name) || is.null(assay_name) || assay_name == "") {
@@ -124,16 +128,32 @@ load_genotypes <- function(genotyping_file, fish_used_file, counting_direction) 
 
 
 attach_genotypes <- function(data, genotypes) {
-  data %>%
+  attached_data <- data %>%
     left_join(genotypes, by = join_by(ARENA == row_id)) %>%
-    filter(genotype %in% c("WT", "HET", "HOM")) %>%
-    arrange(genotype) %>%
+    filter(!is.na(genotype)) %>% # unfilled row
+    filter(genotype != "<Excluded>") %>% # HRM row that failed
+    mutate(genotype = factor(genotype)) %>%
     select(genotype, names(data))
+
+  # make genotypes be HOM, HET, WT if that seems right
+  attached_genotypes <- unique(as.character(attached_data$genotype))
+  if (all(attached_genotypes %in% unique(as.character(DEFAULT_GENOTYPES)))) {
+    df <- attached_data %>%
+      complete(genotype = DEFAULT_GENOTYPES) %>%
+      mutate(genotype = fct_relevel(genotype, levels(DEFAULT_GENOTYPES)))
+  # otherwise leave them like they are
+  } else {
+    df <- attached_data
+  }
+
+  df %>%
+    arrange(genotype)
 }
 
 
 add_numbering <- function(data, id_values, grouping_column) {
   data %>%
+    filter(!is.na(ARENA)) %>%
     mutate(id_num = match(id, id_values)) %>% # convert each id to int
     group_by(!!sym(grouping_column)) %>%
     arrange(id_num, ARENA) %>%
