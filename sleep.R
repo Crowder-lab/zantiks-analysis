@@ -8,9 +8,15 @@ source("utils.R")
 # assay variable setup
 suffixes <- list(genotypes = "_genotypes.csv", fish_used = "_fish.txt")
 all_files <- find_data("sleep", suffixes)
+
+# get files
 main_files <- all_files[["main_files"]]
 wildtype_files <- all_files[["wildtype_files"]]
+
+# see if there's usable wildtype data
 wildtype_exists <- length(wildtype_files) != 0
+wildtype_only_names <- setdiff(names(wildtype_files), names(main_files))
+wildtype_should_be_analyzed <- wildtype_exists && length(wildtype_only_names) > 0
 
 
 # analysis function
@@ -70,39 +76,63 @@ analyze <- function(files) {
 
 
 prism_hourly <- function(df) {
-  df %>%
+  genotype_levels <- unique(as.character(levels(df$genotype)))
+
+  df_wide <- df %>%
     arrange(ARENA, hour) %>%
     select(genotype, ARENA, hour, distance) %>%
-    complete(genotype, ARENA = 1:200) %>%
+    complete(genotype, ARENA = 1:256) %>%
     pivot_wider(
       names_from = c(genotype, ARENA),
       values_from = distance,
-      names_glue = "{genotype}{ARENA}",
+      names_glue = "{genotype}_{ARENA}",
     ) %>%
-    select(hour, paste0("WT", 1:200), paste0("HET", 1:200), paste0("HOM", 1:200)) %>%
+    select(hour, unlist(map(genotype_levels, ~ paste0(.x, "_", 1:256)))) %>%
     arrange(hour)
+
+  df_wide
 }
 
 
 prism_distance_moved <- function(df) {
-  df %>%
+  genotype_levels <- unique(as.character(levels(df$genotype)))
+
+  df_wide <- df %>%
     pivot_wider(
       id_cols = ARENA,
       names_from = genotype,
       values_from = distance_moved,
-    ) %>%
-    select(c("WT", "HET", "HOM"))
+    )
+
+  for (col in genotype_levels) {
+    if (!col %in% names(df_wide)) {
+      df_wide[[col]] <- NA
+    }
+  }
+
+  df_wide %>%
+    select(genotype_levels)
 }
 
 
 prism_percent_thigmotaxis <- function(df) {
-  df %>%
+  genotype_levels <- unique(as.character(levels(df$genotype)))
+
+  df_wide <- df %>%
     pivot_wider(
       id_cols = ARENA,
       names_from = genotype,
       values_from = percent_thigmotaxis,
-    ) %>%
-    select(c("WT", "HET", "HOM"))
+    )
+
+  for (col in genotype_levels) {
+    if (!col %in% names(df_wide)) {
+      df_wide[[col]] <- NA
+    }
+  }
+
+  df_wide %>%
+    select(genotype_levels)
 }
 
 
