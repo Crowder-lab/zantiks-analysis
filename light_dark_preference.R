@@ -8,9 +8,15 @@ source("utils.R")
 # set up variables for this assay
 suffixes <- list(genotypes = "_genotypes.csv", fish_used = "_fish.txt")
 all_files <- find_data("light_dark_preference", suffixes)
+
+# get files
 main_files <- all_files[["main_files"]]
 wildtype_files <- all_files[["wildtype_files"]]
+
+# see if there's usable wildtype data
 wildtype_exists <- length(wildtype_files) != 0
+wildtype_only_names <- setdiff(names(wildtype_files), names(main_files))
+wildtype_should_be_analyzed <- wildtype_exists && length(wildtype_only_names) > 0
 
 
 # analysis function
@@ -70,62 +76,54 @@ analyze <- function(files) {
 
 # prepare percent dark time for prism
 prism_percent_dark_time <- function(df) {
-  prism_df <- df %>%
-    complete(genotype, ARENA = 1:200) %>%
+  genotype_levels <- unique(as.character(levels(df$genotype)))
+
+  df_wide <- df %>%
+    complete(genotype, ARENA = 1:256) %>%
     pivot_wider(
       names_from = c(genotype, ARENA),
       values_from = percent_time,
-      names_glue = "{genotype}{ARENA}",
+      names_glue = "{genotype}_{ARENA}",
     ) %>%
-    select(minute, paste0("WT", 1:200), paste0("HET", 1:200), paste0("HOM", 1:200))
+    select(minute, unlist(map(genotype_levels, ~ paste0(.x, "_", 1:256))))
 
-  prism_df
+  df_wide
 }
 
 
 # prepare total distance for prism
 prism_total_distance <- function(df) {
-  prism_df <- df %>%
-    complete(ZONE, ARENA = 1:200) %>%
-    pivot_wider(
-      names_from = c(ZONE, ARENA),
-      values_from = total_distance,
-      names_glue = "{ZONE}{ARENA}",
-    ) %>%
-    select(genotype, paste0("light", 1:200), paste0("dark", 1:200)) %>%
-    drop_na(genotype) %>%
-    mutate(order = case_when(
-      genotype == "WT" ~ 1,
-      genotype == "HET" ~ 2,
-      genotype == "HOM" ~ 3,
-    )) %>%
-    arrange(order) %>%
-    select(-order)
+  genotype_levels <- unique(as.character(levels(df$genotype)))
 
-  prism_df
+  df_wide <- df %>%
+    complete(genotype, ARENA = 1:256) %>%
+    pivot_wider(
+      names_from = c(genotype, ARENA),
+      values_from = total_distance,
+      names_glue = "{genotype}_{ARENA}",
+    ) %>%
+    select(ZONE, unlist(map(genotype_levels, ~ paste0(.x, "_", 1:256)))) %>%
+    arrange(desc(ZONE))
+
+  df_wide
 }
 
 
 # prepare total time for prism
 prism_total_time <- function(df) {
-  prism_df <- df %>%
-    complete(ZONE, ARENA = 1:200) %>%
-    pivot_wider(
-      names_from = c(ZONE, ARENA),
-      values_from = total_time,
-      names_glue = "{ZONE}{ARENA}",
-    ) %>%
-    select(genotype, paste0("light", 1:200), paste0("dark", 1:200)) %>%
-    drop_na(genotype) %>%
-    mutate(order = case_when(
-      genotype == "WT" ~ 1,
-      genotype == "HET" ~ 2,
-      genotype == "HOM" ~ 3,
-    )) %>%
-    arrange(order) %>%
-    select(-order)
+  genotype_levels <- unique(as.character(levels(df$genotype)))
 
-  prism_df
+  df_wide <- df %>%
+    complete(genotype, ARENA = 1:256) %>%
+    pivot_wider(
+      names_from = c(genotype, ARENA),
+      values_from = total_time,
+      names_glue = "{genotype}_{ARENA}",
+    ) %>%
+    select(ZONE, unlist(map(genotype_levels, ~ paste0(.x, "_", 1:256)))) %>%
+    arrange(desc(ZONE))
+
+  df_wide
 }
 
 
@@ -193,11 +191,11 @@ prism_data <- prism_percent_dark_time(for_prism)
 write_csv(prism_data, file.path("data", "light_dark_preference", "output", "combined_PERCENT-DARK-TIME.csv"))
 
 # light and dark distance
-for_prism <- add_numbering(all_total_distance_data, all_names, "ZONE")
+for_prism <- add_numbering(all_total_distance_data, all_names, "genotype")
 prism_data <- prism_total_distance(for_prism)
 write_csv(prism_data, file.path("data", "light_dark_preference", "output", "combined_TOTAL-DISTANCE.csv"))
 
 # light and dark time
-for_prism <- add_numbering(all_total_time_data, all_names, "ZONE")
+for_prism <- add_numbering(all_total_time_data, all_names, "genotype")
 prism_data <- prism_total_time(for_prism)
 write_csv(prism_data, file.path("data", "light_dark_preference", "output", "combined_TOTAL-TIME.csv"))
