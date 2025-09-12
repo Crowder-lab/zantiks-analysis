@@ -1,14 +1,23 @@
 #!/usr/bin/env Rscript
 
+
 # load library
 source("utils.R")
+
 
 # set up variables for this assay
 suffixes <- list(genotypes = "_genotypes.csv", fish_used = "_fish.txt", xy = "_xy.csv")
 all_files <- find_data("startle_response", suffixes)
+
+# get files
 main_files <- all_files[["main_files"]]
 wildtype_files <- all_files[["wildtype_files"]]
+
+# see if there's usable wildtype data
 wildtype_exists <- length(wildtype_files) != 0
+wildtype_only_names <- setdiff(names(wildtype_files), names(main_files))
+wildtype_should_be_analyzed <- wildtype_exists && length(wildtype_only_names) > 0
+
 
 # analysis function
 analyze <- function(files) {
@@ -28,23 +37,13 @@ analyze <- function(files) {
         filter(PHASE == startle_type) %>%
         mutate(time_point = RUNTIME - 1) %>% # the RUNTIME gets recorded 1 s after the startle
         mutate(phase_id = paste0(startle_type, "_", 1:n())) %>%
+        filter(phase_id %in% paste0(startle_type, "_", c(1, 2))) %>% # only first two startles and startle/prepulse
         select(time_point, phase_id)
 
       # filter to ~2 s neighborhood around the times
-      # make 30 fps examples match 5 fps examples
-      # this is sort of stupid, only works for 30 and 5 fps
-      # 5 fps ~= 50 rows, 30 fps ~= 300 rows
-      # CHANGE IF YOU HAVE OTHER FRAMERATES
-      if (nrow(xy_data) < 30000) { # 5 fps
-        filtered_xy <- xy_data %>%
-          cross_join(times) %>%
-          filter(abs(RUNTIME - time_point) <= 1.4)
-      } else { # 30 fps
-        filtered_xy <- xy_data %>%
-          filter(row_number() %% 6 == 0) %>% # decimate by a factor of 6
-          cross_join(times) %>%
-          filter(abs(RUNTIME - time_point) <= 1.4)
-      }
+      filtered_xy <- xy_data %>%
+        cross_join(times) %>%
+        filter(abs(RUNTIME - time_point) <= 1.4)
 
       # make data long(er)-form: | RUNTIME | ARENA | time_point | phase_id | x | y |
       long_xy <- filtered_xy %>%
@@ -61,14 +60,10 @@ analyze <- function(files) {
         ) %>%
         ungroup()
 
-      # add 200 ms bins relative to startle time
+      # add 100 ms bins relative to startle time
       # take only the first time value of each bin
       annotated_xy <- long_xy %>%
-        mutate(relative_bin = as.integer(round((RUNTIME - time_point) * 5) * 200)) %>%
-        group_by(ARENA, phase_id, relative_bin) %>%
-        arrange(ARENA, phase_id, RUNTIME) %>%
-        summarise(RUNTIME = first(RUNTIME), x = first(x), y = first(y)) %>%
-        ungroup()
+        mutate(relative_bin = as.integer(round((RUNTIME - time_point) * 10) * 100))# %>%
 
       # add distance in
       distance_xy <- annotated_xy %>%
@@ -87,8 +82,8 @@ analyze <- function(files) {
         select(ARENA, relative_bin, distance_step) %>%
         attach_genotypes(genotypes) %>%
         group_by(ARENA) %>%
-        # filter out fish that don't move at all around the startle from -400 ms to +400 ms
-        filter(sum(distance_step[abs(relative_bin) <= 400]) != 0) %>%
+        # filter out fish that don't move at all around the startle from -500 ms to +500 ms
+        filter(sum(distance_step[abs(relative_bin) <= 500]) != 0) %>%
         ungroup() %>%
         arrange(ARENA, relative_bin)
 
@@ -96,112 +91,121 @@ analyze <- function(files) {
       analyzed_data[[startle_type]][[prefix_name]] <- final_xy
       analyzed_data[["ppi"]][[prefix_name]][[startle_type]] <- final_xy %>%
         group_by(ARENA) %>%
-        summarise(genotype = first(genotype), !!sym(startle_type) := distance_step[relative_bin == 200])
+        summarise(genotype = first(genotype), !!sym(startle_type) := distance_step[relative_bin == 100])
     }
 
-    startle_at_200ms <- analyzed_data[["ppi"]][[prefix_name]][["STARTLE"]]
-    prepulse_at_200ms <- analyzed_data[["ppi"]][[prefix_name]][["PREPULSE"]]
-    combined_at_200ms <- startle_at_200ms %>%
-      inner_join(prepulse_at_200ms, by = join_by(ARENA, genotype)) %>%
+    startle_at_100ms <- analyzed_data[["ppi"]][[prefix_name]][["STARTLE"]]
+    prepulse_at_100ms <- analyzed_data[["ppi"]][[prefix_name]][["PREPULSE"]]
+    combined_at_100ms <- startle_at_100ms %>%
+      inner_join(prepulse_at_100ms, by = join_by(ARENA, genotype)) %>%
       mutate(percent_ppi = (STARTLE - PREPULSE) / STARTLE * 100) %>%
       filter(percent_ppi <= 100 & percent_ppi >= 0) # also gets rid of infinites and NaNs
-    analyzed_data[["ppi"]][[prefix_name]] <- combined_at_200ms
+    analyzed_data[["ppi"]][[prefix_name]] <- combined_at_100ms
     }
 
   analyzed_data
 }
 
-# save main data files
-main_data <- analyze(main_files)
-for (startle_type in c("STARTLE", "PREPULSE")) {
-  for (prefix_name in names(main_files)) {
-    df <- main_data[[startle_type]][[prefix_name]]
-    # prepare for graphpad prism
-    prism_xy <- df %>%
-      select(genotype, ARENA, relative_bin, distance_step) %>%
-      complete(genotype, ARENA = 1:200) %>%
-      pivot_wider(
-        names_from = c(genotype, ARENA),
-        values_from = distance_step,
-        names_glue = "{genotype}{ARENA}",
-      ) %>%
-      select(relative_bin, paste0("WT", 1:200), paste0("HET", 1:200), paste0("HOM", 1:200)) %>%
-      drop_na(relative_bin) %>%
-      arrange(relative_bin)
 
-    # save the data!
-    write_csv(prism_xy, file.path("data", "startle_response", "output", paste0(prefix_name, "_", startle_type, ".csv")))
-  }
-}
-for (prefix_name in names(main_files)) {
-  df <- main_data[["ppi"]][[prefix_name]]
-  prism_df <- df %>%
-    select(ARENA, genotype, percent_ppi) %>%
-    pivot_wider(names_from = genotype, values_from = percent_ppi) %>%
-    select(WT, HET, HOM)
+prism_startle_prepulse <- function(df) {
+  # get the genotypes present
+  genotype_levels <- unique(as.character(levels(df$genotype)))
 
-  # save the data
-  write_csv(prism_df, file.path("data", "startle_response", "output", paste0(prefix_name, "_PERCENT-PPI.csv")))
-}
-
-# include wildtype as well
-if (wildtype_exists) {
-  wildtype_data <- analyze(wildtype_files)
-}
-for (startle_type in c("STARTLE", "PREPULSE")) {
-  # if wildtype data exists
-  if (wildtype_exists) {
-    # remove main data from wildtype if present
-    # also remove non-WT genotypes
-    wildtype_only_names <- setdiff(names(wildtype_files), names(main_files))
-    combined_wildtype <- bind_rows(wildtype_data[[startle_type]], .id = "id") %>%
-      filter(genotype == "WT") %>%
-      filter(id %in% wildtype_only_names)
-
-    # get main data and combine
-    combined_main <- bind_rows(main_data[[startle_type]], .id = "id")
-    all_data <- bind_rows(combined_wildtype, combined_main)
-    all_names <- union(names(wildtype_files), names(main_files))
-  # if there's no wildtype data
-  } else {
-    all_data <- bind_rows(main_data[[startle_type]], .id = "id")
-    all_names <- names(main_files)
-  }
-
-  combined_data <- all_data %>%
-    mutate(id_num = match(id, all_names)) %>% # convert each id (name from list) to int
-    group_by(genotype) %>%
-    arrange(id_num, ARENA) %>%
-    mutate(unique_id = 96 * (id_num - 1) + ARENA - 1) %>% # both 1-indexed
-    mutate(numbering = match(unique_id, sort(unique(unique_id)))) %>%
-    ungroup() %>%
-    select(-c(id, ARENA, id_num, unique_id)) %>%
-    complete(genotype, numbering = 1:200) %>%
+  df_wide <- df %>%
+    select(genotype, ARENA, relative_bin, distance_step) %>%
+    # make there be 256 arenas for padding
+    complete(genotype, ARENA = 1:256) %>%
     pivot_wider(
-      names_from = c(genotype, numbering),
+      names_from = c(genotype, ARENA),
       values_from = distance_step,
-      names_glue = "{genotype}{numbering}"
+      names_glue = "{genotype}_{ARENA}",
     ) %>%
-    select(relative_bin, paste0("WT", 1:200), paste0("HET", 1:200), paste0("HOM", 1:200)) %>%
+    select(
+      relative_bin,
+      # select 256 columns of each genotype in order
+      unlist(map(genotype_levels, ~ paste0(.x, "_", 1:256)))
+    ) %>%
     drop_na(relative_bin) %>%
     arrange(relative_bin)
 
-  write_csv(combined_data, file.path("data", "startle_response", "output", paste0("combined_", startle_type, ".csv")))
+  df_wide
 }
-if (wildtype_exists) {
+
+
+prism_percent_ppi <- function(df) {
+  genotype_levels <- unique(as.character(levels(df$genotype)))
+
+  df_wide <- df %>%
+    pivot_wider(
+      id_cols = ARENA,
+      names_from = genotype,
+      values_from = percent_ppi,
+    )
+
+  for (col in genotype_levels) {
+    if (!col %in% names(df_wide)) {
+      df_wide[[col]] <- NA
+    }
+  }
+
+  df_wide %>%
+    select(genotype_levels)
+}
+
+
+# save main data files
+main_data <- analyze(main_files)
+for (prefix_name in names(main_files)) {
+  prism_data <- prism_startle_prepulse(main_data[["STARTLE"]][[prefix_name]])
+  write_csv(prism_data, file.path("data", "startle_response", "output", paste0(prefix_name, "_STARTLE.csv")))
+
+  prism_data <- prism_startle_prepulse(main_data[["PREPULSE"]][[prefix_name]])
+  write_csv(prism_data, file.path("data", "startle_response", "output", paste0(prefix_name, "_PREPULSE.csv")))
+
+  prism_data <- prism_percent_ppi(main_data[["ppi"]][[prefix_name]])
+  write_csv(prism_data, file.path("data", "startle_response", "output", paste0(prefix_name, "_PERCENT-PPI.csv")))
+}
+
+# include wildtype as well
+if (wildtype_should_be_analyzed) {
+  wildtype_data <- analyze(wildtype_files)
+  all_names <- union(names(wildtype_files), names(main_files))
+
+  combined_wildtype <- bind_rows(wildtype_data[["STARTLE"]], .id = "id") %>%
+    filter(genotype == "WT") %>%
+    filter(id %in% wildtype_only_names)
+  combined_main <- bind_rows(main_data[["STARTLE"]], .id = "id")
+  all_startle_data <- bind_rows(combined_wildtype, combined_main)
+
+  combined_wildtype <- bind_rows(wildtype_data[["PREPULSE"]], .id = "id") %>%
+    filter(genotype == "WT") %>%
+    filter(id %in% wildtype_only_names)
+  combined_main <- bind_rows(main_data[["PREPULSE"]], .id = "id")
+  all_prepulse_data <- bind_rows(combined_wildtype, combined_main)
+
   combined_wildtype <- bind_rows(wildtype_data[["ppi"]], .id = "id") %>%
     filter(genotype == "WT") %>%
     filter(id %in% wildtype_only_names)
   combined_main <- bind_rows(main_data[["ppi"]], .id = "id")
-
-  all_data <- bind_rows(combined_wildtype, combined_main)
-  all_names <- union(names(wildtype_files), names(main_files))
+  all_percent_ppi_data <- bind_rows(combined_wildtype, combined_main)
 } else {
-  all_data <- bind_rows(main_data[["ppi"]], .id = "id")
   all_names <- names(main_files)
+
+  all_startle_data <- bind_rows(main_data[["STARTLE"]], .id = "id")
+
+  all_prepulse_data <- bind_rows(main_data[["PREPULSE"]], .id = "id")
+
+  all_percent_ppi_data <- bind_rows(main_data[["ppi"]], .id = "id")
 }
-combined_data <- all_data %>%
-  select(id, ARENA, genotype, percent_ppi) %>%
-  pivot_wider(names_from = genotype, values_from = percent_ppi) %>%
-  select(WT, HET, HOM)
-write_csv(combined_data, file.path("data", "startle_response", "output", "combined_PERCENT-PPI.csv"))
+
+for_prism <- add_numbering(all_startle_data, all_names, "genotype")
+prism_data <- prism_startle_prepulse(for_prism)
+write_csv(prism_data, file.path("data", "startle_response", "output", "combined_STARTLE.csv"))
+
+for_prism <- add_numbering(all_prepulse_data, all_names, "genotype")
+prism_data <- prism_startle_prepulse(for_prism)
+write_csv(prism_data, file.path("data", "startle_response", "output", "combined_PREPULSE.csv"))
+
+for_prism <- add_numbering(all_percent_ppi_data, all_names, "genotype")
+prism_data <- prism_percent_ppi(for_prism)
+write_csv(prism_data, file.path("data", "startle_response", "output", "combined_PERCENT-PPI.csv"))
