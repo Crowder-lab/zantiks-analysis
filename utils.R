@@ -21,7 +21,7 @@ find_data <- function(assay_name, suffixes_needed) {
     }
 
     # Remove other .csv files that are really from the same group
-    csv_suffixes = suffixes_needed[endsWith(unlist(suffixes_needed), ".csv")]
+    csv_suffixes <- suffixes_needed[endsWith(unlist(suffixes_needed), ".csv")]
     for (csv_suffix in csv_suffixes) {
       unfiltered_csv_files <- unfiltered_csv_files[!endsWith(unfiltered_csv_files, csv_suffix)]
     }
@@ -148,6 +148,52 @@ attach_genotypes <- function(data, genotypes) {
 
   df %>%
     arrange(genotype)
+}
+
+
+column_data <- function(data, values_column) {
+  # get the genotypes that should be here
+  genotype_levels <- levels(data$genotype)
+
+  data_wide <- data %>%
+    pivot_wider(
+      id_cols = ARENA,
+      names_from = genotype,
+      values_from = !!sym(values_column),
+    )
+
+  # add genotype columnn if it doesn't exist
+  for (col in genotype_levels) {
+    if (!col %in% names(data_wide)) {
+      data_wide[[col]] <- NA
+    }
+  }
+
+  # get rid of invalid genotypes
+  data_wide %>%
+    select(genotype_levels)
+}
+
+
+xy_or_grouped_data <- function(data, values_column, non_genotype_column) {
+  # get the genotypes present
+  genotype_levels <- unique(as.character(levels(data$genotype)))
+
+  data_wide <- data %>%
+    # make there be 256 arenas for padding
+    complete(genotype, ARENA = PRISM_MAX_SEQUENCE) %>%
+    pivot_wider(
+      names_from = c(genotype, ARENA),
+      values_from = !!sym(values_column),
+      names_glue = "{genotype}_{ARENA}",
+    ) %>%
+    select(
+      !!sym(non_genotype_column),
+      # select 256 columns of each genotype in order
+      unlist(map(genotype_levels, ~ paste0(.x, "_", PRISM_MAX_SEQUENCE)))
+    )
+
+  data_wide
 }
 
 
