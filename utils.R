@@ -171,7 +171,7 @@ column_data <- function(data, values_column) {
 
   # get rid of invalid genotypes
   data_wide %>%
-    select(genotype_levels)
+    select(all_of(genotype_levels))
 }
 
 
