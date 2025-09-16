@@ -79,15 +79,15 @@ main_data <- analyze(main_files)
 for (prefix_name in names(main_files)) {
   # percent time spent in dark zone
   prism_data <- xy_or_grouped_data(main_data[["percent dark time"]][[prefix_name]], "percent_time", "minute")
-  write_csv(prism_data, file.path("data", "light_dark_preference", "output", paste0(prefix_name, "_PERCENT-DARK-TIME.csv")))
+  write_csv(prism_data, file.path("data", "light_dark_preference_6dpf", "output", paste0(prefix_name, "_PERCENT-DARK-TIME.csv")))
 
   # light and dark distance
   prism_data <- xy_or_grouped_data(main_data[["total distance"]][[prefix_name]], "total_distance", "ZONE")
-  write_csv(prism_data, file.path("data", "light_dark_preference", "output", paste0(prefix_name, "_TOTAL-DISTANCE.csv")))
+  write_csv(prism_data, file.path("data", "light_dark_preference_6dpf", "output", paste0(prefix_name, "_TOTAL-DISTANCE.csv")))
 
   # light and dark time
   prism_data <- xy_or_grouped_data(main_data[["total time"]][[prefix_name]], "total_time", "ZONE")
-  write_csv(prism_data, file.path("data", "light_dark_preference", "output", paste0(prefix_name, "_TOTAL-TIME.csv")))
+  write_csv(prism_data, file.path("data", "light_dark_preference_6dpf", "output", paste0(prefix_name, "_TOTAL-TIME.csv")))
 }
 
 
@@ -135,14 +135,14 @@ if (wildtype_exists) {
 # percent time spent in dark zone
 for_prism <- add_numbering(all_percent_dark_time_data, all_names, "genotype")
 prism_data <- xy_or_grouped_data(for_prism, "percent_time", "minute")
-write_csv(prism_data, file.path("data", "light_dark_preference", "output", "combined_PERCENT-DARK-TIME.csv"))
+write_csv(prism_data, file.path("data", "light_dark_preference_6dpf", "output", "combined_PERCENT-DARK-TIME.csv"))
 
 # light and dark distance
 for_prism <- add_numbering(all_total_distance_data, all_names, "genotype")
 prism_data <- xy_or_grouped_data(for_prism, "total_distance", "ZONE")
-write_csv(prism_data, file.path("data", "light_dark_preference", "output", "combined_TOTAL-DISTANCE.csv"))
+write_csv(prism_data, file.path("data", "light_dark_preference_6dpf", "output", "combined_TOTAL-DISTANCE.csv"))
 
 # light and dark time
 for_prism <- add_numbering(all_total_time_data, all_names, "genotype")
 prism_data <- xy_or_grouped_data(for_prism, "total_time", "ZONE")
-write_csv(prism_data, file.path("data", "light_dark_preference", "output", "combined_TOTAL-TIME.csv"))
+write_csv(prism_data, file.path("data", "light_dark_preference_6dpf", "output", "combined_TOTAL-TIME.csv"))
