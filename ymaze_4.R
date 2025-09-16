@@ -7,7 +7,7 @@ source("utils.R")
 
 # assay variables
 suffixes <- list(genotypes = "_genotypes.csv", fish_used = "_fish.txt")
-all_files <- find_data("ymaze_15", suffixes)
+all_files <- find_data("ymaze_4", suffixes)
 
 # get files
 main_files <- all_files[["main_files"]]

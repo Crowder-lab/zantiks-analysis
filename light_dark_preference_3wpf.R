@@ -7,7 +7,7 @@ source("utils.R")
 
 # set up variables for this assay
 suffixes <- list(genotypes = "_genotypes.csv", fish_used = "_fish.txt")
-all_files <- find_data("light_dark_preference", suffixes)
+all_files <- find_data("light_dark_preference_3wpf", suffixes)
 
 # get files
 main_files <- all_files[["main_files"]]
