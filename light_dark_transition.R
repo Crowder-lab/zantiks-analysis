@@ -25,7 +25,7 @@ analyze <- function(files) {
   for (prefix_name in names(files)) {
     group <- files[[prefix_name]]
     main_data <- load_zantiks(group$main, "dcidddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd")
-    genotypes <- load_genotypes(group$genotypes, group$fish_used, "across")
+    genotypes <- load_genotypes(group$genotypes, group$fish_used, "down")
 
     long_data <- main_data %>%
       pivot_longer(
