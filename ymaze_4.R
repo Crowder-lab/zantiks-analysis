@@ -127,19 +127,19 @@ analyze <- function(files) {
 main_data <- analyze(main_files)
 for (prefix_name in names(main_files)) {
   prism_data <- xy_or_grouped_data(main_data[["zone time"]][[prefix_name]], "total_time", "zone_type")
-  write_csv(prism_data, file.path("data", "ymaze_15", "output", paste0(prefix_name, "_ZONE-TIME.csv")))
+  write_csv(prism_data, file.path("data", "ymaze_4", "output", paste0(prefix_name, "_ZONE-TIME.csv")))
 
   prism_data <- column_data(main_data[["spontaneous alternation percent"]][[prefix_name]], "spontaneous_alternation_percent")
-  write_csv(prism_data, file.path("data", "ymaze_15", "output", paste0(prefix_name, "_SPONTANEOUS-ALTERNATION-PERCENT.csv")))
+  write_csv(prism_data, file.path("data", "ymaze_4", "output", paste0(prefix_name, "_SPONTANEOUS-ALTERNATION-PERCENT.csv")))
 
   prism_data <- column_data(main_data[["turn count"]][[prefix_name]], "turn_count")
-  write_csv(prism_data, file.path("data", "ymaze_15", "output", paste0(prefix_name, "_TURN-COUNT.csv")))
+  write_csv(prism_data, file.path("data", "ymaze_4", "output", paste0(prefix_name, "_TURN-COUNT.csv")))
 
   prism_data <- column_data(main_data[["alternation percent"]][[prefix_name]], "alternation_percent")
-  write_csv(prism_data, file.path("data", "ymaze_15", "output", paste0(prefix_name, "_ALTERNATION-PERCENT.csv")))
+  write_csv(prism_data, file.path("data", "ymaze_4", "output", paste0(prefix_name, "_ALTERNATION-PERCENT.csv")))
 
   prism_data <- column_data(main_data[["repetition percent"]][[prefix_name]], "repetition_percent")
-  write_csv(prism_data, file.path("data", "ymaze_15", "output", paste0(prefix_name, "_REPETITION-PERCENT.csv")))
+  write_csv(prism_data, file.path("data", "ymaze_4", "output", paste0(prefix_name, "_REPETITION-PERCENT.csv")))
 }
 
 if (wildtype_should_be_analyzed) {
@@ -191,20 +191,20 @@ if (wildtype_should_be_analyzed) {
 
 for_prism <- add_numbering(all_zone_time_data, all_names, "genotype")
 prism_data <- xy_or_grouped_data(for_prism, "total_time", "zone_type")
-write_csv(prism_data, file.path("data", "ymaze_15", "output", "combined_ZONE-TIME.csv"))
+write_csv(prism_data, file.path("data", "ymaze_4", "output", "combined_ZONE-TIME.csv"))
 
 for_prism <- add_numbering(all_spontaneous_alternation_percent_data, all_names, "genotype")
 prism_data <- column_data(for_prism, "spontaneous_alternation_percent")
-write_csv(prism_data, file.path("data", "ymaze_15", "output", "combined_SPONTANEOUS-ALTERNATION-PERCENT.csv"))
+write_csv(prism_data, file.path("data", "ymaze_4", "output", "combined_SPONTANEOUS-ALTERNATION-PERCENT.csv"))
 
 for_prism <- add_numbering(all_turn_count_data, all_names, "genotype")
 prism_data <- column_data(for_prism, "turn_count")
-write_csv(prism_data, file.path("data", "ymaze_15", "output", "combined_TURN-COUNT.csv"))
+write_csv(prism_data, file.path("data", "ymaze_4", "output", "combined_TURN-COUNT.csv"))
 
 for_prism <- add_numbering(all_alternation_percent_data, all_names, "genotype")
 prism_data <- column_data(for_prism, "alternation_percent")
-write_csv(prism_data, file.path("data", "ymaze_15", "output", "combined_ALTERNATION-PERCENT.csv"))
+write_csv(prism_data, file.path("data", "ymaze_4", "output", "combined_ALTERNATION-PERCENT.csv"))
 
 for_prism <- add_numbering(all_repetition_percent_data, all_names, "genotype")
 prism_data <- column_data(for_prism, "repetition_percent")
-write_csv(prism_data, file.path("data", "ymaze_15", "output", "combined_REPETITION-PERCENT.csv"))
+write_csv(prism_data, file.path("data", "ymaze_4", "output", "combined_REPETITION-PERCENT.csv"))
