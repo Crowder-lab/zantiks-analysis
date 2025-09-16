@@ -74,72 +74,19 @@ analyze <- function(files) {
 }
 
 
-# prepare percent dark time for prism
-prism_percent_dark_time <- function(df) {
-  genotype_levels <- unique(as.character(levels(df$genotype)))
-
-  df_wide <- df %>%
-    complete(genotype, ARENA = 1:256) %>%
-    pivot_wider(
-      names_from = c(genotype, ARENA),
-      values_from = percent_time,
-      names_glue = "{genotype}_{ARENA}",
-    ) %>%
-    select(minute, unlist(map(genotype_levels, ~ paste0(.x, "_", 1:256))))
-
-  df_wide
-}
-
-
-# prepare total distance for prism
-prism_total_distance <- function(df) {
-  genotype_levels <- unique(as.character(levels(df$genotype)))
-
-  df_wide <- df %>%
-    complete(genotype, ARENA = 1:256) %>%
-    pivot_wider(
-      names_from = c(genotype, ARENA),
-      values_from = total_distance,
-      names_glue = "{genotype}_{ARENA}",
-    ) %>%
-    select(ZONE, unlist(map(genotype_levels, ~ paste0(.x, "_", 1:256)))) %>%
-    arrange(desc(ZONE))
-
-  df_wide
-}
-
-
-# prepare total time for prism
-prism_total_time <- function(df) {
-  genotype_levels <- unique(as.character(levels(df$genotype)))
-
-  df_wide <- df %>%
-    complete(genotype, ARENA = 1:256) %>%
-    pivot_wider(
-      names_from = c(genotype, ARENA),
-      values_from = total_time,
-      names_glue = "{genotype}_{ARENA}",
-    ) %>%
-    select(ZONE, unlist(map(genotype_levels, ~ paste0(.x, "_", 1:256)))) %>%
-    arrange(desc(ZONE))
-
-  df_wide
-}
-
-
 # analyze and save each clutch of the main data
 main_data <- analyze(main_files)
 for (prefix_name in names(main_files)) {
   # percent time spent in dark zone
-  prism_data <- prism_percent_dark_time(main_data[["percent dark time"]][[prefix_name]])
+  prism_data <- xy_or_grouped_data(main_data[["percent dark time"]][[prefix_name]], "percent_time", "minute")
   write_csv(prism_data, file.path("data", "light_dark_preference", "output", paste0(prefix_name, "_PERCENT-DARK-TIME.csv")))
 
   # light and dark distance
-  prism_data <- prism_total_distance(main_data[["total distance"]][[prefix_name]])
+  prism_data <- xy_or_grouped_data(main_data[["total distance"]][[prefix_name]], "total_distance", "ZONE")
   write_csv(prism_data, file.path("data", "light_dark_preference", "output", paste0(prefix_name, "_TOTAL-DISTANCE.csv")))
 
   # light and dark time
-  prism_data <- prism_total_time(main_data[["total time"]][[prefix_name]])
+  prism_data <- xy_or_grouped_data(main_data[["total time"]][[prefix_name]], "total_time", "ZONE")
   write_csv(prism_data, file.path("data", "light_dark_preference", "output", paste0(prefix_name, "_TOTAL-TIME.csv")))
 }
 
@@ -187,15 +134,15 @@ if (wildtype_exists) {
 # analyze and save combined data
 # percent time spent in dark zone
 for_prism <- add_numbering(all_percent_dark_time_data, all_names, "genotype")
-prism_data <- prism_percent_dark_time(for_prism)
+prism_data <- xy_or_grouped_data(for_prism, "percent_time", "minute")
 write_csv(prism_data, file.path("data", "light_dark_preference", "output", "combined_PERCENT-DARK-TIME.csv"))
 
 # light and dark distance
 for_prism <- add_numbering(all_total_distance_data, all_names, "genotype")
-prism_data <- prism_total_distance(for_prism)
+prism_data <- xy_or_grouped_data(for_prism, "total_distance", "ZONE")
 write_csv(prism_data, file.path("data", "light_dark_preference", "output", "combined_TOTAL-DISTANCE.csv"))
 
 # light and dark time
 for_prism <- add_numbering(all_total_time_data, all_names, "genotype")
-prism_data <- prism_total_time(for_prism)
+prism_data <- xy_or_grouped_data(for_prism, "total_time", "ZONE")
 write_csv(prism_data, file.path("data", "light_dark_preference", "output", "combined_TOTAL-TIME.csv"))

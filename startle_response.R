@@ -107,62 +107,16 @@ analyze <- function(files) {
 }
 
 
-prism_startle_prepulse <- function(df) {
-  # get the genotypes present
-  genotype_levels <- unique(as.character(levels(df$genotype)))
-
-  df_wide <- df %>%
-    select(genotype, ARENA, relative_bin, distance_step) %>%
-    # make there be 256 arenas for padding
-    complete(genotype, ARENA = 1:256) %>%
-    pivot_wider(
-      names_from = c(genotype, ARENA),
-      values_from = distance_step,
-      names_glue = "{genotype}_{ARENA}",
-    ) %>%
-    select(
-      relative_bin,
-      # select 256 columns of each genotype in order
-      unlist(map(genotype_levels, ~ paste0(.x, "_", 1:256)))
-    ) %>%
-    drop_na(relative_bin) %>%
-    arrange(relative_bin)
-
-  df_wide
-}
-
-
-prism_percent_ppi <- function(df) {
-  genotype_levels <- unique(as.character(levels(df$genotype)))
-
-  df_wide <- df %>%
-    pivot_wider(
-      id_cols = ARENA,
-      names_from = genotype,
-      values_from = percent_ppi,
-    )
-
-  for (col in genotype_levels) {
-    if (!col %in% names(df_wide)) {
-      df_wide[[col]] <- NA
-    }
-  }
-
-  df_wide %>%
-    select(genotype_levels)
-}
-
-
 # save main data files
 main_data <- analyze(main_files)
 for (prefix_name in names(main_files)) {
-  prism_data <- prism_startle_prepulse(main_data[["STARTLE"]][[prefix_name]])
+  prism_data <- xy_or_grouped_data(main_data[["STARTLE"]][[prefix_name]], "distance_step", "relative_bin")
   write_csv(prism_data, file.path("data", "startle_response", "output", paste0(prefix_name, "_STARTLE.csv")))
 
-  prism_data <- prism_startle_prepulse(main_data[["PREPULSE"]][[prefix_name]])
+  prism_data <- xy_or_grouped_data(main_data[["PREPULSE"]][[prefix_name]], "distance_step", "relative_bin")
   write_csv(prism_data, file.path("data", "startle_response", "output", paste0(prefix_name, "_PREPULSE.csv")))
 
-  prism_data <- prism_percent_ppi(main_data[["ppi"]][[prefix_name]])
+  prism_data <- column_data(main_data[["ppi"]][[prefix_name]], "percent_ppi")
   write_csv(prism_data, file.path("data", "startle_response", "output", paste0(prefix_name, "_PERCENT-PPI.csv")))
 }
 
@@ -199,13 +153,13 @@ if (wildtype_should_be_analyzed) {
 }
 
 for_prism <- add_numbering(all_startle_data, all_names, "genotype")
-prism_data <- prism_startle_prepulse(for_prism)
+prism_data <- xy_or_grouped_data(for_prism, "distance_step", "relative_bin")
 write_csv(prism_data, file.path("data", "startle_response", "output", "combined_STARTLE.csv"))
 
 for_prism <- add_numbering(all_prepulse_data, all_names, "genotype")
-prism_data <- prism_startle_prepulse(for_prism)
+prism_data <- xy_or_grouped_data(for_prism, "distance_step", "relative_bin")
 write_csv(prism_data, file.path("data", "startle_response", "output", "combined_PREPULSE.csv"))
 
 for_prism <- add_numbering(all_percent_ppi_data, all_names, "genotype")
-prism_data <- prism_percent_ppi(for_prism)
+prism_data <- column_data(for_prism, "percent_ppi")
 write_csv(prism_data, file.path("data", "startle_response", "output", "combined_PERCENT-PPI.csv"))

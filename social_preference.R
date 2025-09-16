@@ -68,57 +68,14 @@ analyze <- function(files) {
 }
 
 
-prism_social_preference_index <- function(df) {
-  genotype_levels <- levels(df$genotype)
-
-  df_wide <- df %>%
-    pivot_wider(
-      id_cols = ARENA,
-      names_from = genotype,
-      values_from = social_preference_index,
-    )
-
-  for (col in genotype_levels) {
-    if (!col %in% names(df_wide)) {
-      df_wide[[col]] <- NA
-    }
-  }
-
-  df_wide %>%
-    select(genotype_levels)
-}
-
-
-prism_zone_time <- function(df) {
-  # get the genotypes present
-  genotype_levels <- unique(as.character(levels(df$genotype)))
-
-  df_wide <- df %>%
-    # make there be 256 arenas for padding
-    complete(genotype, ARENA = 1:256) %>%
-    pivot_wider(
-      names_from = c(genotype, ARENA),
-      values_from = total_time,
-      names_glue = "{genotype}_{ARENA}",
-    ) %>%
-    select(
-      ZONE,
-      # select 256 columns of each genotype in order
-      unlist(map(genotype_levels, ~ paste0(.x, "_", 1:256)))
-    )
-
-  df_wide
-}
-
-
 main_data <- analyze(main_files)
 for (prefix_name in names(main_files)) {
   # social preference index data
-  prism_data <- prism_social_preference_index(main_data[["social preference index"]][[prefix_name]])
+  prism_data <- column_data(main_data[["social preference index"]][[prefix_name]], "social_preference_index")
   write_csv(prism_data, file.path("data", "social_preference", "output", paste0(prefix_name, "_SOCIAL-PREFERENCE-INDEX.csv")))
 
   # zone time data
-  prism_data <- prism_zone_time(main_data[["zone time"]][[prefix_name]])
+  prism_data <- xy_or_grouped_data(main_data[["zone time"]][[prefix_name]], "total_time", "ZONE")
   write_csv(prism_data, file.path("data", "social_preference", "output", paste0(prefix_name, "_ZONE-TIME.csv")))
 }
 
@@ -154,10 +111,10 @@ if (wildtype_should_be_analyzed) {
 # analyze and save combined data
 # social preference index
 for_prism <- add_numbering(all_social_preference_index_data, all_names, "genotype")
-prism_data <- prism_social_preference_index(for_prism)
+prism_data <- column_data(for_prism, "social_preference_index")
 write_csv(prism_data, file.path("data", "social_preference", "output", "combined_SOCIAL-PREFERENCE-INDEX.csv"))
 
 # zone time
 for_prism <- add_numbering(all_zone_time_data, all_names, "genotype")
-prism_data <- prism_zone_time(for_prism)
+prism_data <- xy_or_grouped_data(for_prism, "total_time", "ZONE")
 write_csv(prism_data, file.path("data", "social_preference", "output", "combined_ZONE-TIME.csv"))

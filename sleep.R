@@ -58,6 +58,8 @@ analyze <- function(files) {
 
     # this is slow to calculate
     thigmotaxis_data <- long_data %>%
+      mutate(hour = as.integer(floor((BIN_NUM - 1) / 3300)) + 1) %>%
+      filter(hour == 25) %>%
       group_by(ARENA, BIN_NUM) %>%
       summarise(primary_zone = ifelse(DISTANCE[ZONE == 1] > DISTANCE[ZONE == 2], 1, 2)) %>%
       summarise(percent_thigmotaxis = mean(primary_zone == 1) * 100)
@@ -75,105 +77,63 @@ analyze <- function(files) {
 }
 
 
-prism_hourly <- function(df) {
-  genotype_levels <- unique(as.character(levels(df$genotype)))
-
-  df_wide <- df %>%
-    arrange(ARENA, hour) %>%
-    select(genotype, ARENA, hour, distance) %>%
-    complete(genotype, ARENA = 1:256) %>%
-    pivot_wider(
-      names_from = c(genotype, ARENA),
-      values_from = distance,
-      names_glue = "{genotype}_{ARENA}",
-    ) %>%
-    select(hour, unlist(map(genotype_levels, ~ paste0(.x, "_", 1:256)))) %>%
-    arrange(hour)
-
-  df_wide
-}
-
-
-prism_distance_moved <- function(df) {
-  genotype_levels <- unique(as.character(levels(df$genotype)))
-
-  df_wide <- df %>%
-    pivot_wider(
-      id_cols = ARENA,
-      names_from = genotype,
-      values_from = distance_moved,
-    )
-
-  for (col in genotype_levels) {
-    if (!col %in% names(df_wide)) {
-      df_wide[[col]] <- NA
-    }
-  }
-
-  df_wide %>%
-    select(genotype_levels)
-}
-
-
-prism_percent_thigmotaxis <- function(df) {
-  genotype_levels <- unique(as.character(levels(df$genotype)))
-
-  df_wide <- df %>%
-    pivot_wider(
-      id_cols = ARENA,
-      names_from = genotype,
-      values_from = percent_thigmotaxis,
-    )
-
-  for (col in genotype_levels) {
-    if (!col %in% names(df_wide)) {
-      df_wide[[col]] <- NA
-    }
-  }
-
-  df_wide %>%
-    select(genotype_levels)
-}
-
-
 # analyze and save each clutch of the main data
 main_data <- analyze(main_files)
 for (prefix_name in names(main_files)) {
   # hourly data
-  prism_data <- prism_hourly(main_data[["hourly"]][[prefix_name]])
+  prism_data <- xy_or_grouped_data(main_data[["hourly"]][[prefix_name]], "distance", "hour")
   write_csv(prism_data, file.path("data", "sleep", "output", paste0(prefix_name, "_HOURLY.csv")))
 
   # 1 hr distance moved
-  prism_data <- prism_distance_moved(main_data[["distance moved"]][[prefix_name]])
+  prism_data <- column_data(main_data[["distance moved"]][[prefix_name]], "distance_moved")
   write_csv(prism_data, file.path("data", "sleep", "output", paste0(prefix_name, "_DISTANCE_MOVED.csv")))
 
   # percent thigmotaxis
-  prism_data <- prism_percent_thigmotaxis(main_data[["percent thigmotaxis"]][[prefix_name]])
+  prism_data <- column_data(main_data[["percent thigmotaxis"]][[prefix_name]], "percent_thigmotaxis")
   write_csv(prism_data, file.path("data", "sleep", "output", paste0(prefix_name, "_PERCENT-THIGMOTAXIS.csv")))
 }
 
 
 # combine data (including wildtypes if possible)
-if (wildtype_exists) {
+if (wildtype_should_be_analyzed) {
   wildtype_data <- analyze(wildtype_files)
-  wildtype_only_names <- setdiff(names(wildtype_files), names(main_files))
   all_names <- union(names(wildtype_files), names(main_files))
+
+  combined_wildtype <- bind_rows(wildtype_data[["hourly"]], .id = "id") %>%
+    filter(genotype == "WT") %>%
+    filter(id %in% wildtype_only_names)
+  combined_main <- bind_rows(main_data[["hourly"]], .id = "id")
+  all_hourly_data <- bind_rows(combined_wildtype, combined_main)
+
+  combined_wildtype <- bind_rows(wildtype_data[["distance moved"]], .id = "id") %>%
+    filter(genotype == "WT") %>%
+    filter(id %in% wildtype_only_names)
+  combined_main <- bind_rows(main_data[["distance moved"]], .id = "id")
+  all_distance_moved_data <- bind_rows(combined_wildtype, combined_main)
+
+  combined_wildtype <- bind_rows(wildtype_data[["percent thigmotaxis"]], .id = "id") %>%
+    filter(genotype == "WT") %>%
+    filter(id %in% wildtype_only_names)
+  combined_main <- bind_rows(main_data[["percent thigmotaxis"]], .id = "id")
+  all_percent_thigmotaxis_data <- bind_rows(combined_wildtype, combined_main)
 } else {
   all_names <- names(main_files)
 
   all_hourly_data <- bind_rows(main_data[["hourly"]], .id = "id")
+
   all_distance_moved_data <- bind_rows(main_data[["distance moved"]], .id = "id")
+
   all_percent_thigmotaxis_data <- bind_rows(main_data[["percent thigmotaxis"]], .id = "id")
 }
 
 for_prism <- add_numbering(all_hourly_data, all_names, "genotype")
-prism_data <- prism_hourly(for_prism)
+prism_data <- xy_or_grouped_data(for_prism, "distance", "hour")
 write_csv(prism_data, file.path("data", "sleep", "output", "combined_HOURLY.csv"))
 
 for_prism <- add_numbering(all_distance_moved_data, all_names, "genotype")
-prism_data <- prism_distance_moved(for_prism)
+prism_data <- column_data(for_prism, "distance_moved")
 write_csv(prism_data, file.path("data", "sleep", "output", "combined_DISTANCE-MOVED.csv"))
 
 for_prism <- add_numbering(all_percent_thigmotaxis_data, all_names, "genotype")
-prism_data <- prism_percent_thigmotaxis(for_prism)
+prism_data <- column_data(for_prism, "percent_thigmotaxis")
 write_csv(prism_data, file.path("data", "sleep", "output", "combined_PERCENT-THIGMOTAXIS.csv"))
