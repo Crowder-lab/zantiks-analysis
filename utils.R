@@ -141,8 +141,8 @@ attach_genotypes <- function(data, genotypes) {
     df <- attached_data %>%
       complete(genotype = DEFAULT_GENOTYPES) %>%
       mutate(genotype = fct_relevel(genotype, levels(DEFAULT_GENOTYPES)))
-  # otherwise leave them like they are
   } else {
+    # otherwise leave them like they are
     df <- attached_data
   }
 
@@ -180,12 +180,18 @@ xy_or_grouped_data <- function(data, values_column, non_genotype_column) {
   genotype_levels <- unique(as.character(levels(data$genotype)))
 
   data_wide <- data %>%
+    # arenas now count from 1, no gaps
+    group_by(genotype) %>%
+    arrange(ARENA) %>%
+    mutate(numbering = match(ARENA, sort(unique(ARENA)))) %>%
+    ungroup() %>%
+    select(-ARENA) %>%
     # make there be 256 arenas for padding
-    complete(genotype, ARENA = PRISM_MAX_SEQUENCE) %>%
+    complete(genotype, numbering = PRISM_MAX_SEQUENCE) %>%
     pivot_wider(
-      names_from = c(genotype, ARENA),
+      names_from = c(genotype, numbering),
       values_from = !!sym(values_column),
-      names_glue = "{genotype}_{ARENA}",
+      names_glue = "{genotype}_{numbering}",
     ) %>%
     select(
       !!sym(non_genotype_column),
