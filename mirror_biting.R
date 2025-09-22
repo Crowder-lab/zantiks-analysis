@@ -64,7 +64,7 @@ for (prefix_name in names(main_files)) {
   write_csv(prism_data, file.path("data", "mirror_biting", "output", paste0(prefix_name, "_MIRROR-DISTANCE.csv")))
 
   prism_data <- column_data(main_data[["mirror time"]][[prefix_name]], "mirror_time")
-  write_csv(prism_data, file.path("data", "mirror_biting", "output", paste0(prefix_name, "_MIRROR-DISTANCE.csv")))
+  write_csv(prism_data, file.path("data", "mirror_biting", "output", paste0(prefix_name, "_MIRROR-TIME.csv")))
 }
 
 # combine data (including wildtypes if possible)
