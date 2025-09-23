@@ -48,9 +48,24 @@ analyze <- function(files) {
       group_by(ARENA) %>%
       summarise(mirror_time = sum(VALUE))
 
+    mirror_speed_data <- long_data %>%
+      filter(ZONE == 1) %>%
+      group_by(ARENA) %>%
+      summarise(mirror_speed = sum(VALUE[CATEGORY == "D"]) / sum(VALUE[CATEGORY == "T"])) %>%
+      mutate(mirror_speed = replace_na(mirror_speed, 0))
+
+    aggression_index_data <- long_data %>%
+      filter(CATEGORY == "T") %>%
+      group_by(ARENA) %>%
+      summarise(aggression_index = (sum(VALUE[ZONE == 1]) - sum(VALUE[ZONE == 3])) / sum(VALUE))
+
     analyzed_data[["mirror distance"]][[prefix_name]] <- mirror_distance_data %>%
       attach_genotypes(genotypes)
     analyzed_data[["mirror time"]][[prefix_name]] <- mirror_time_data %>%
+      attach_genotypes(genotypes)
+    analyzed_data[["mirror speed"]][[prefix_name]] <- mirror_speed_data %>%
+      attach_genotypes(genotypes)
+    analyzed_data[["aggression index"]][[prefix_name]] <- aggression_index_data %>%
       attach_genotypes(genotypes)
   }
 
@@ -65,6 +80,12 @@ for (prefix_name in names(main_files)) {
 
   prism_data <- column_data(main_data[["mirror time"]][[prefix_name]], "mirror_time")
   write_csv(prism_data, file.path("data", "mirror_biting", "output", paste0(prefix_name, "_MIRROR-TIME.csv")))
+
+  prism_data <- column_data(main_data[["mirror speed"]][[prefix_name]], "mirror_speed")
+  write_csv(prism_data, file.path("data", "mirror_biting", "output", paste0(prefix_name, "_MIRROR-SPEED.csv")))
+
+  prism_data <- column_data(main_data[["aggression index"]][[prefix_name]], "aggression_index")
+  write_csv(prism_data, file.path("data", "mirror_biting", "output", paste0(prefix_name, "_AGGRESSION_INDEX.csv")))
 }
 
 # combine data (including wildtypes if possible)
@@ -83,12 +104,28 @@ if (wildtype_should_be_analyzed) {
     filter(id %in% wildtype_only_names)
   combined_main <- bind_rows(main_data[["mirror time"]], .id = "id")
   all_mirror_time_data <- bind_rows(combined_wildtype, combined_main)
+
+  combined_wildtype <- bind_rows(wildtype_data[["mirror speed"]], .id = "id") %>%
+    filter(genotype == "WT") %>%
+    filter(id %in% wildtype_only_names)
+  combined_main <- bind_rows(main_data[["mirror speed"]], .id = "id")
+  all_mirror_speed_data <- bind_rows(combined_wildtype, combined_main)
+
+  combined_wildtype <- bind_rows(wildtype_data[["aggression index"]], .id = "id") %>%
+    filter(genotype == "WT") %>%
+    filter(id %in% wildtype_only_names)
+  combined_main <- bind_rows(main_data[["aggression index"]], .id = "id")
+  all_aggression_index_data <- bind_rows(combined_wildtype, combined_main)
 } else {
   all_names <- names(main_files)
 
   all_mirror_distance_data <- bind_rows(main_data[["mirror distance"]], .id = "id")
 
   all_mirror_time_data <- bind_rows(main_data[["mirror time"]], .id = "id")
+
+  all_mirror_speed_data <- bind_rows(main_data[["mirror speed"]], .id = "id")
+
+  all_aggression_index_data <- bind_rows(main_data[["aggression index"]], .id = "id")
 }
 
 
@@ -100,3 +137,11 @@ write_csv(prism_data, file.path("data", "mirror_biting", "output", "combined_MIR
 for_prism <- add_numbering(all_mirror_time_data, all_names, "genotype")
 prism_data <- column_data(for_prism, "mirror_time")
 write_csv(prism_data, file.path("data", "mirror_biting", "output", "combined_MIRROR-TIME.csv"))
+
+for_prism <- add_numbering(all_mirror_speed_data, all_names, "genotype")
+prism_data <- column_data(for_prism, "mirror_speed")
+write_csv(prism_data, file.path("data", "mirror_biting", "output", "combined_MIRROR-SPEED.csv"))
+
+for_prism <- add_numbering(all_aggression_index_data, all_names, "genotype")
+prism_data <- column_data(for_prism, "aggression_index")
+write_csv(prism_data, file.path("data", "mirror_biting", "output", "combined_AGGRESSION-INDEX.csv"))
