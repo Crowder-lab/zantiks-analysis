@@ -38,9 +38,9 @@ analyze <- function(files) {
       mutate(ARENA = as.integer(ARENA), ZONE = as.integer(ZONE)) %>%
       relocate(ARENA, ZONE) %>%
       mutate(ZONE = case_when(ARENA %in% c(5, 6, 7, 8) & ZONE == 1 ~ 3, .default = ZONE)) %>% # start swapping zone numbers
-      mutate(ZONE = case_when(ARENA %in% c(5, 6, 7, 8) & ZONE == 2 ~ 1, .default = ZONE)) %>% # now 1 is always dark
-      mutate(ZONE = case_when(ARENA %in% c(5, 6, 7, 8) & ZONE == 3 ~ 2, .default = ZONE)) %>% # and 2 is always light
-      mutate(ZONE = c("dark", "light")[ZONE]) %>%
+      mutate(ZONE = case_when(ARENA %in% c(5, 6, 7, 8) & ZONE == 2 ~ 1, .default = ZONE)) %>% # now 1 is always light
+      mutate(ZONE = case_when(ARENA %in% c(5, 6, 7, 8) & ZONE == 3 ~ 2, .default = ZONE)) %>% # and 2 is always dark
+      mutate(ZONE = c("light", "dark")[ZONE]) %>%
       attach_genotypes(genotypes) %>%
       arrange(ARENA, ZONE, TIME)
 
