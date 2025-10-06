@@ -1,6 +1,5 @@
 #!/usr/bin/env Rscript
 
-
 # load library
 source("utils.R")
 
@@ -35,15 +34,16 @@ analyze <- function(files) {
       # find out when the startles were
       times <- main_data %>%
         filter(PHASE == startle_type) %>%
-        mutate(time_point = RUNTIME - 1) %>% # the RUNTIME gets recorded 1 s after the startle
-        mutate(phase_id = paste0(startle_type, "_", 1:n())) %>%
-        filter(phase_id %in% paste0(startle_type, "_", c(1, 2))) %>% # only first two startles and startle/prepulse
+        mutate(time_point = case_when(PHASE == "STARTLE" ~ RUNTIME - 1,
+                                      PHASE == "PREPULSE" ~ RUNTIME - 0.7)) %>%
+        mutate(phase_id = paste0(startle_type, "_", seq_len(n()))) %>%
+        # filter(phase_id %in% paste0(startle_type, "_", c(1, 2))) %>%
         select(time_point, phase_id)
 
       # filter to ~2 s neighborhood around the times
       filtered_xy <- xy_data %>%
         cross_join(times) %>%
-        filter(abs(RUNTIME - time_point) <= 1.4)
+        filter(abs(RUNTIME - time_point) <= 0.9)
 
       # make data long(er)-form: | RUNTIME | ARENA | time_point | phase_id | x | y |
       long_xy <- filtered_xy %>%
@@ -61,24 +61,24 @@ analyze <- function(files) {
         ungroup()
 
       # add 100 ms bins relative to startle time
-      # take only the first time value of each bin
       annotated_xy <- long_xy %>%
-        mutate(relative_bin = as.integer(round((RUNTIME - time_point) * 10) * 100))# %>%
+        mutate(relative_bin = as.integer(round((RUNTIME - time_point) * 10) * 100))
 
       # add distance in
       distance_xy <- annotated_xy %>%
         arrange(ARENA, phase_id, RUNTIME) %>%
         mutate(distance_step = sqrt((x - lag(x))^2 + (y - lag(y))^2))
 
-      # collapse each phase into the mean
+      # collapse each phase into the sum
       averaged_xy <- distance_xy %>%
+        filter(phase_id != "STARTLE_1") %>% # first startle has missing data before
         group_by(ARENA, relative_bin) %>%
         summarise(distance_step = mean(distance_step, na.rm = TRUE)) %>%
         ungroup()
 
       # final filtering and column selection
       final_xy <- averaged_xy %>%
-        filter(abs(relative_bin) <= 1000) %>%
+        filter(abs(relative_bin) <= 500) %>%
         select(ARENA, relative_bin, distance_step) %>%
         attach_genotypes(genotypes) %>%
         group_by(ARENA) %>%
@@ -91,7 +91,10 @@ analyze <- function(files) {
       analyzed_data[[startle_type]][[prefix_name]] <- final_xy
       analyzed_data[["ppi"]][[prefix_name]][[startle_type]] <- final_xy %>%
         group_by(ARENA) %>%
-        summarise(genotype = first(genotype), !!sym(startle_type) := distance_step[relative_bin == 100])
+        summarise(
+          genotype = first(genotype),
+          !!sym(startle_type) := distance_step[relative_bin == 100]
+        )
     }
 
     startle_at_100ms <- analyzed_data[["ppi"]][[prefix_name]][["STARTLE"]]
@@ -101,7 +104,7 @@ analyze <- function(files) {
       mutate(percent_ppi = (STARTLE - PREPULSE) / STARTLE * 100) %>%
       filter(percent_ppi <= 100 & percent_ppi >= 0) # also gets rid of infinites and NaNs
     analyzed_data[["ppi"]][[prefix_name]] <- combined_at_100ms
-    }
+  }
 
   analyzed_data
 }
