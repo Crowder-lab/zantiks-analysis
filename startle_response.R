@@ -84,26 +84,64 @@ analyze <- function(files) {
         group_by(ARENA) %>%
         # filter out fish that don't move at all around the startle from -500 ms to +500 ms
         filter(sum(distance_step[abs(relative_bin) <= 500]) != 0) %>%
+        mutate(is_responder = distance_step[relative_bin == 100] > 0) %>%
         ungroup() %>%
         arrange(ARENA, relative_bin)
 
+      analyzed_data[[startle_type]][[prefix_name]] <- final_xy %>%
+        filter(is_responder)
+
       # add to list to combine later
-      analyzed_data[[startle_type]][[prefix_name]] <- final_xy
       analyzed_data[["ppi"]][[prefix_name]][[startle_type]] <- final_xy %>%
         group_by(ARENA) %>%
         summarise(
           genotype = first(genotype),
+          is_responder = all(is_responder),
           !!sym(startle_type) := distance_step[relative_bin == 100]
         )
+      analyzed_data[["response probability"]][[prefix_name]][[startle_type]] <- distance_xy %>%
+        filter(phase_id != "STARTLE_1") %>%
+        group_by(ARENA, phase_id, relative_bin) %>%
+        summarise(distance_step = mean(distance_step, na.rm = TRUE)) %>%
+        ungroup() %>%
+        group_by(ARENA) %>%
+        summarise(
+          response_probability =
+            sum(distance_step[relative_bin == 100] > 0) / sum(relative_bin == 100) * 100
+        ) %>%
+        attach_genotypes(genotypes)
+      analyzed_data[["distance traveled"]][[prefix_name]][[startle_type]] <- averaged_xy %>%
+        filter(relative_bin == 100) %>%
+        filter(distance_step > 0) %>%
+        select(c(ARENA, distance_step)) %>%
+        rename(distance_traveled = distance_step) %>%
+        attach_genotypes(genotypes)
     }
 
     startle_at_100ms <- analyzed_data[["ppi"]][[prefix_name]][["STARTLE"]]
     prepulse_at_100ms <- analyzed_data[["ppi"]][[prefix_name]][["PREPULSE"]]
     combined_at_100ms <- startle_at_100ms %>%
+      filter(is_responder) %>%
       inner_join(prepulse_at_100ms, by = join_by(ARENA, genotype)) %>%
       mutate(percent_ppi = (STARTLE - PREPULSE) / STARTLE * 100) %>%
-      filter(percent_ppi <= 100 & percent_ppi >= 0) # also gets rid of infinites and NaNs
+      filter(percent_ppi >= 0) # also gets rid of infinites and NaNs
     analyzed_data[["ppi"]][[prefix_name]] <- combined_at_100ms
+
+    startle_response_probability <- analyzed_data[["response probability"]][[prefix_name]][["STARTLE"]]
+    prepulse_response_probability <- analyzed_data[["response probability"]][[prefix_name]][["PREPULSE"]]
+    combined_response_probability <- bind_rows(
+      list(STARTLE = startle_response_probability, PREPULSE = prepulse_response_probability),
+      .id = "startle_type"
+    )
+    analyzed_data[["response probability"]][[prefix_name]] <- combined_response_probability
+
+    startle_distance <- analyzed_data[["distance traveled"]][[prefix_name]][["STARTLE"]]
+    prepulse_distance <- analyzed_data[["distance traveled"]][[prefix_name]][["PREPULSE"]]
+    combined_distance <- bind_rows(
+      list(STARTLE = startle_distance, PREPULSE = prepulse_distance),
+      .id = "startle_type"
+    )
+    analyzed_data[["distance traveled"]][[prefix_name]] <- combined_distance
   }
 
   analyzed_data
@@ -121,6 +159,12 @@ for (prefix_name in names(main_files)) {
 
   prism_data <- column_data(main_data[["ppi"]][[prefix_name]], "percent_ppi")
   write_csv(prism_data, file.path("data", "startle_response", "output", paste0(prefix_name, "_PERCENT-PPI.csv")))
+
+  prism_data <- xy_or_grouped_data(main_data[["response probability"]][[prefix_name]], "response_probability", "startle_type")
+  write_csv(prism_data, file.path("data", "startle_response", "output", paste0(prefix_name, "_RESPONSE-PROBABILITY.csv")))
+
+  prism_data <- xy_or_grouped_data(main_data[["distance traveled"]][[prefix_name]], "distance_traveled", "startle_type")
+  write_csv(prism_data, file.path("data", "startle_response", "output", paste0(prefix_name, "_DISTANCE-TRAVELED.csv")))
 }
 
 # include wildtype as well
@@ -145,6 +189,18 @@ if (wildtype_should_be_analyzed) {
     filter(id %in% wildtype_only_names)
   combined_main <- bind_rows(main_data[["ppi"]], .id = "id")
   all_percent_ppi_data <- bind_rows(combined_wildtype, combined_main)
+
+  combined_wildtype <- bind_rows(wildtype_data[["response probability"]], .id = "id") %>%
+    filter(genotype == "WT") %>%
+    filter(id %in% wildtype_only_names)
+  combined_main <- bind_rows(main_data[["response probability"]], .id = "id")
+  all_response_probability_data <- bind_rows(combined_wildtype, combined_main)
+
+  combined_wildtype <- bind_rows(wildtype_data[["distance traveled"]], .id = "id") %>%
+    filter(genotype == "WT") %>%
+    filter(id %in% wildtype_only_names)
+  combined_main <- bind_rows(main_data[["distance traveled"]], .id = "id")
+  all_distance_traveled_data <- bind_rows(combined_wildtype, combined_main)
 } else {
   all_names <- names(main_files)
 
@@ -153,6 +209,10 @@ if (wildtype_should_be_analyzed) {
   all_prepulse_data <- bind_rows(main_data[["PREPULSE"]], .id = "id")
 
   all_percent_ppi_data <- bind_rows(main_data[["ppi"]], .id = "id")
+
+  all_response_probability_data <- bind_rows(main_data[["response probability"]], .id = "id")
+
+  all_distance_traveled_data <- bind_rows(main_data[["distance traveled"]], .id = "id")
 }
 
 for_prism <- add_numbering(all_startle_data, all_names, "genotype")
@@ -166,3 +226,11 @@ write_csv(prism_data, file.path("data", "startle_response", "output", "combined_
 for_prism <- add_numbering(all_percent_ppi_data, all_names, "genotype")
 prism_data <- column_data(for_prism, "percent_ppi")
 write_csv(prism_data, file.path("data", "startle_response", "output", "combined_PERCENT-PPI.csv"))
+
+for_prism <- add_numbering(all_response_probability_data, all_names, "genotype")
+prism_data <- xy_or_grouped_data(for_prism, "response_probability", "startle_type")
+write_csv(prism_data, file.path("data", "startle_response", "output", "combined_RESPONSE-PROBABILITY.csv"))
+
+for_prism <- add_numbering(all_distance_traveled_data, all_names, "genotype")
+prism_data <- xy_or_grouped_data(for_prism, "distance_traveled", "startle_type")
+write_csv(prism_data, file.path("data", "startle_response", "output", "combined_DISTANCE-TRAVELED.csv"))
