@@ -58,7 +58,8 @@ analyze <- function(files) {
       filter(ENDPOINT == "DISTANCE_IN_ZONE") %>%
       group_by(ARENA, ZONE) %>%
       summarise(genotype = first(genotype), ZONE = first(ZONE), total_distance = sum(VALUE)) %>%
-      ungroup()
+      ungroup() %>%
+      arrange(desc(ZONE))
     analyzed_data[["total distance"]][[prefix_name]] <- distance_data
 
     # light and dark time
@@ -66,7 +67,8 @@ analyze <- function(files) {
       filter(ENDPOINT == "TIME_SPENT_IN_ZONE") %>%
       group_by(ARENA, ZONE) %>%
       summarise(genotype = first(genotype), ZONE = first(ZONE), total_time = sum(VALUE)) %>%
-      ungroup()
+      ungroup() %>%
+      arrange(desc(ZONE))
     analyzed_data[["total time"]][[prefix_name]] <- time_data
   }
 
