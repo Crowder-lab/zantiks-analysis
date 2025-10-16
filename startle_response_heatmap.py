@@ -102,7 +102,7 @@ def analyze(files):
         valid_genotypes = genotypes.loc[
             (genotypes["genotype"] != "<Excluded>") & genotypes["genotype"].notna()
         ]
-        valid_genotypes["arena"] = valid_genotypes.index
+        valid_genotypes["arena"] = valid_genotypes.index + 1
         for arena in valid_genotypes["arena"]:
             valid_arenas |= utils.get_arena_coords(arena_map, arena)
         for x, y in points:
