@@ -4,7 +4,7 @@ import string
 
 import cv2
 import numpy as np
-import pandas as pd
+import polars as pl
 from numpy.typing import NDArray
 
 DEFAULT_GENOTYPES = {"WT", "HET", "HOM"}
@@ -99,15 +99,16 @@ def find_heatmap_data(assay_name: str, suffixes_needed: dict[str, str]):
     return {"main_files": main_data, "wildtype_files": wildtype_data}
 
 
-def load_xy(file_path: str) -> pd.DataFrame:
+def load_xy(file_path: str) -> pl.DataFrame:
     with open(file_path, "r") as f:
-        df = pd.read_csv(f)
+        df = pl.scan_csv(f)
+    df = df.cast(pl.Float64).collect()
     return df
 
 
 def load_genotypes(
     genotyping_file: str, fish_used_file: str, counting_direction: str
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     # read in data about which fish were used
     with open(fish_used_file, "r") as f:
         fish_used_data = np.asarray(
@@ -129,27 +130,32 @@ def load_genotypes(
 
     # read in data
     with open(genotyping_file, "r") as f:
-        genotype_data = pd.read_csv(f)
-    genotype_data = genotype_data[["Well", "Cluster"]].rename(
-        columns={"Well": "genotyping_well", "Cluster": "genotype"}
+        genotype_data = pl.read_csv(f)
+    genotype_data = genotype_data.select(["Well", "Cluster"]).rename(
+        {"Well": "genotyping_well", "Cluster": "genotype"}
     )
-    genotype_data = genotype_data.assign(
-        row=genotype_data["genotyping_well"].str.extract(r"([A-H])"),
-        column=genotype_data["genotyping_well"].str.extract(r"([0-9]+)").astype(int),
+    genotype_data = genotype_data.with_columns(
+        row=genotype_data["genotyping_well"].str.extract(r"(^[A-H])"),
+        column=genotype_data["genotyping_well"]
+        .str.extract(r"([0-9]+$)")
+        .cast(pl.UInt8),
     )
-    genotype_data["genotyping_well"] = genotype_data["row"] + genotype_data[
-        "column"
-    ].astype(str).str.zfill(2)
-    genotype_data = genotype_data.loc[genotype_data["genotyping_well"].isin(wells_used)]
+    genotype_data = genotype_data.with_columns(
+        genotyping_well=genotype_data["row"]
+        + genotype_data["column"].cast(pl.String).str.zfill(2)
+    )
+    genotype_data = genotype_data.filter(
+        genotype_data["genotyping_well"].is_in(wells_used)
+    )
 
     # sort by row or column
     if counting_direction == "across":
-        genotype_data = genotype_data.sort_values(["row", "column"])
+        genotype_data = genotype_data.sort(["row", "column"])
     else:
-        genotype_data = genotype_data.sort_values(["column", "row"])
+        genotype_data = genotype_data.sort(["column", "row"])
 
     # add row ids to join on
-    genotype_data = genotype_data.reset_index(drop=True)
+    genotype_data = genotype_data.with_row_index(name="arena", offset=1)
 
     return genotype_data
 
@@ -184,7 +190,9 @@ def get_arena_coords(arena_map: NDArray, arena: int) -> NDArray[bool]:
     return np.all(arena_map == arena_color, axis=-1)
 
 
-def find_crop_coordinates(mask: NDArray[bool], buffer_scale: float = 0.1) -> tuple[int, int, int, int]:
+def find_crop_coordinates(
+    mask: NDArray[bool], buffer_scale: float = 0.1
+) -> tuple[int, int, int, int]:
     # find bounds of data
     row_min, row_max, col_min, col_max = None, None, None, None
     for i, row in enumerate(mask):
@@ -219,7 +227,7 @@ def find_crop_coordinates(mask: NDArray[bool], buffer_scale: float = 0.1) -> tup
     return row_min, row_max, col_min, col_max
 
 
-def attach_genotypes(data: pd.DataFrame, genotypes: pd.DataFrame) -> pd.DataFrame:
+def attach_genotypes(data: pl.DataFrame, genotypes: pl.DataFrame) -> pl.DataFrame:
     attached_data = data.join(genotypes, on="ARENA", how="left")
     attached_data = attached_data.dropna(subset="genotype")
     attached_data = attached_data.loc[attached_data["genotype"] != "<Excluded>"]
@@ -233,7 +241,7 @@ def attach_genotypes(data: pd.DataFrame, genotypes: pd.DataFrame) -> pd.DataFram
         # this sucks so bad in python
         df = (
             attached_data.set_index("genotype")
-            .reindex(pd.Series(DEFAULT_GENOTYPES))
+            .reindex(pl.Series(DEFAULT_GENOTYPES))
             .reset_index()
         )
     else:
