@@ -13,7 +13,7 @@ import utils
 
 # assay variable setup
 suffixes = {"genotypes": "_genotypes.csv", "fish_used": "_fish.txt"}
-all_files = utils.find_heatmap_data("startle_response", suffixes)
+all_files = utils.find_heatmap_data("light_dark_transition", suffixes)
 
 # get files
 main_files = all_files["main_files"]
@@ -190,14 +190,14 @@ for prefix, data in main_data["run"].items():
         data["data"].copy(),
         data["mask"],
         prefix,
-        os.path.join("data", "startle_response", "output", prefix),
+        os.path.join("data", "light_dark_transition", "output", prefix),
     )
     for arena in data["arenas"]:
         save_arena_plot(
             data["data"].copy(),
             arena,
             f"{prefix}: Arena {arena}",
-            os.path.join("data", "startle_response", "output", f"{prefix}_{arena}"),
+            os.path.join("data", "light_dark_transition", "output", f"{prefix}_{arena}"),
         )
 for genotype, prefixes in main_data["by_genotype"].items():
     for prefix, data in prefixes.items():
@@ -205,5 +205,5 @@ for genotype, prefixes in main_data["by_genotype"].items():
             data["data"].copy(),
             data["mask"],
             f"{prefix}: {genotype}",
-            os.path.join("data", "startle_response", "output", f"{prefix}_{genotype}"),
+            os.path.join("data", "light_dark_transition", "output", f"{prefix}_{genotype}"),
         )
