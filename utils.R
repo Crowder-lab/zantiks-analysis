@@ -27,7 +27,7 @@ find_data <- function(assay_name, suffixes_needed) {
     }
 
     # Replace name after filtering
-    main_files <- unfiltered_csv_files
+    main_files <- unfiltered_csv_files[!endsWith(unfiltered_csv_files, "_xy.csv")]
     # Extract prefixes from main data files
     prefixes <- tools::file_path_sans_ext(basename(main_files))
 
