@@ -1,15 +1,14 @@
 #!/usr/bin/env uv run
 import math
+import os
 
 import cv2
-import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
+import polars as pl
 from numpy.typing import NDArray
 from scipy.ndimage import gaussian_filter1d
 
 import utils
-
 
 # assay variable setup
 suffixes = {"picture": ".png", "genotypes": "_genotypes.csv", "fish_used": "_fish.txt"}
@@ -18,7 +17,9 @@ all_files = utils.find_data("developmental_delay", suffixes)
 # get files
 main_files = all_files["main_files"]
 wildtype_files = all_files["wildtype_files"]
-arena_map = utils.load_arena_map("data/arenas/half/a96embryo.bmp")
+arena_map = utils.load_arena_map(
+    os.path.join("data", "arenas", "96_well_embryo", "96_well_embryo.bmp")
+)
 
 # see if there's usable wildtype data
 wildtype_exists = len(wildtype_files) != 0
@@ -64,17 +65,25 @@ def monotonically_increasing(a: float, b: float, c: float) -> bool:
     # some calc early return
     if c > 0:
         if radicand < 0:
-          return True
+            return True
         elif b >= 0 and b + 3 * c <= 0:
             return True
 
     radical = math.sqrt(radicand)
     plus_root = (-2 * b + radical) / (6 * c)
     minus_root = (-2 * b - radical) / (6 * c)
-    return (c < 0 and plus_root <= 0 and minus_root >= 1) or (c > 0 and (plus_root <= 0 or minus_root >= 1))
+    return (c < 0 and plus_root <= 0 and minus_root >= 1) or (
+        c > 0 and (plus_root <= 0 or minus_root >= 1)
+    )
 
 
-def discrete_entropy_vectorized(cm_x: float, cm_y: float, max_distance: float, parameters: tuple[float, float, float], image: NDArray):
+def discrete_entropy_vectorized(
+    cm_x: float,
+    cm_y: float,
+    max_distance: float,
+    parameters: tuple[float, float, float],
+    image: NDArray,
+):
     a, b, c = parameters
     num_rows, num_cols = image.shape
 
@@ -82,10 +91,15 @@ def discrete_entropy_vectorized(cm_x: float, cm_y: float, max_distance: float, p
     histogram = np.zeros((512,))
 
     # normalized distance to CoM
-    r = np.sqrt(
-        np.pow(np.broadcast_to(np.arange(num_cols), image.shape) - cm_x, 2) +
-        np.pow(np.broadcast_to(np.arange(num_rows), (num_cols, num_rows)).T - cm_y, 2)
-    ) / max_distance
+    r = (
+        np.sqrt(
+            np.pow(np.broadcast_to(np.arange(num_cols), image.shape) - cm_x, 2)
+            + np.pow(
+                np.broadcast_to(np.arange(num_rows), (num_cols, num_rows)).T - cm_y, 2
+            )
+        )
+        / max_distance
+    )
 
     # gain function and pixel luminance value
     g = 1 + a * np.pow(r, 2) + b * np.pow(r, 4) + c * np.pow(r, 6)
@@ -102,16 +116,23 @@ def discrete_entropy_vectorized(cm_x: float, cm_y: float, max_distance: float, p
     max_histogram_bin = math.ceil(np.max(bin)) if np.max(bin) > 255 else 255
 
     for i in range(math.ceil(max_histogram_bin)):
-        histogram[i] += np.sum(floor_bin_vals[floor_bin == i]) + np.sum(ceil_bin_vals[ceil_bin == i])
+        histogram[i] += np.sum(floor_bin_vals[floor_bin == i]) + np.sum(
+            ceil_bin_vals[ceil_bin == i]
+        )
 
     # smooth out histogram
     histogram = gaussian_filter1d(histogram[:max_histogram_bin], sigma=4)
     scaled_histogram = histogram / np.sum(histogram)
 
     # discrete entropy
-    return -np.sum(np.where(scaled_histogram > 0, scaled_histogram * np.log(scaled_histogram), 0))
+    return -np.sum(
+        np.where(scaled_histogram > 0, scaled_histogram * np.log(scaled_histogram), 0)
+    )
 
-def find_parameters_vectorized(cm_x: float, cm_y: float, max_distance: float, image: NDArray):
+
+def find_parameters_vectorized(
+    cm_x: float, cm_y: float, max_distance: float, image: NDArray
+):
     a = b = c = 0
     delta = 2
     min_h = None
@@ -122,14 +143,18 @@ def find_parameters_vectorized(cm_x: float, cm_y: float, max_distance: float, im
         initial_guess = (a, b, c)
         guess_matrix = np.broadcast_to(np.asarray((a, b, c)), (3, 3))
         delta_matrix = delta * np.identity(3)
-        guesses = np.hstack((guess_matrix + delta_matrix, guess_matrix - delta_matrix)).reshape((-1, 3))
+        guesses = np.hstack(
+            (guess_matrix + delta_matrix, guess_matrix - delta_matrix)
+        ).reshape((-1, 3))
         for guess_arr in guesses:
             guess = tuple(guess_arr.tolist())
             if guess not in explored:
                 explored.add(guess)
 
                 if monotonically_increasing(*guess):
-                    current_h = discrete_entropy_vectorized(cm_x, cm_y, max_distance, guess, image)
+                    current_h = discrete_entropy_vectorized(
+                        cm_x, cm_y, max_distance, guess, image
+                    )
 
                     if current_h < min_h:
                         min_h = current_h
@@ -140,7 +165,7 @@ def find_parameters_vectorized(cm_x: float, cm_y: float, max_distance: float, im
 
     return a, b, c
 
-                
+
 def vignetting_correction_vectorized(image: NDArray) -> NDArray:
     """
     Adapted from https://github.com/Hiroki39/Vignetting-Correction
@@ -152,18 +177,24 @@ def vignetting_correction_vectorized(image: NDArray) -> NDArray:
     # calculate centers of mass
     cm_x = np.sum(image * np.arange(num_cols)) / np.sum(image)
     cm_y = np.sum(image.T * np.arange(num_rows)) / np.sum(image)
-    distance_array = np.asarray(((0, 0),
-                                 (0, num_rows),
-                                 (num_cols, 0),
-                                 (num_cols, num_rows)))
-    max_distance = math.sqrt(np.max(np.sum(np.pow(distance_array - np.asarray((cm_x, cm_y)), 2), axis=1)))
+    distance_array = np.asarray(
+        ((0, 0), (0, num_rows), (num_cols, 0), (num_cols, num_rows))
+    )
+    max_distance = math.sqrt(
+        np.max(np.sum(np.pow(distance_array - np.asarray((cm_x, cm_y)), 2), axis=1))
+    )
 
     a, b, c = find_parameters_vectorized(cm_x, cm_y, max_distance, image)
 
-    r = np.sqrt(
-        np.pow(np.broadcast_to(np.arange(num_cols), image.shape) - cm_x, 2) +
-        np.pow(np.broadcast_to(np.arange(num_rows), (num_cols, num_rows)).T - cm_y, 2)
-    ) / max_distance
+    r = (
+        np.sqrt(
+            np.pow(np.broadcast_to(np.arange(num_cols), image.shape) - cm_x, 2)
+            + np.pow(
+                np.broadcast_to(np.arange(num_rows), (num_cols, num_rows)).T - cm_y, 2
+            )
+        )
+        / max_distance
+    )
     g = 1 + a * np.pow(r, 2) + b * np.pow(r, 4) + c * np.pow(r, 6)
     modified = original_image * np.dstack((g, g, g))
     return modified
@@ -171,15 +202,32 @@ def vignetting_correction_vectorized(image: NDArray) -> NDArray:
 
 # analysis function
 def analyze(files):
-    analyzed_data = {}
+    analyzed_data = {"percent_difference": {}}
     for prefix_name in files.keys():
         group = files[prefix_name]
         main_data = cv2.imread(group["picture"], cv2.IMREAD_COLOR_BGR)
-        genotypes = utils.load_genotypes(group["genotypes"], group["fish_used"], "across")
+        genotypes = utils.load_genotypes(
+            group["genotypes"], group["fish_used"], "across"
+        )
         # arenas are in a really ridiculous order--rearrange
-        genotypes["row_as_num"] = genotypes["row"].map(tuple("ABCDEFGH").index)
-        genotypes["row_id"] = genotypes[["row_as_num", "column"]].apply(new_row_id, axis=1)
-        genotypes = genotypes[genotypes["genotype"].isin(utils.DEFAULT_GENOTYPES)]
+        genotypes = genotypes.with_columns(
+            (
+                pl.col("row").str.encode("hex").str.to_integer(base=16, dtype=pl.UInt8)
+                - 65
+            ).alias("row_as_num")
+        )
+        genotypes = genotypes.with_columns(
+            pl.when(pl.col("row_as_num").is_in({0, 1, 2, 3}) & (pl.col("column") <= 6))
+            .then(pl.col("row_as_num") * 6 + pl.col("column"))
+            .when(pl.col("row_as_num").is_in({0, 1, 2, 3}) & (pl.col("column") > 6))
+            .then(pl.col("row_as_num") * 6 + pl.col("column") - 6 + 24)
+            .when(pl.col("row_as_num").is_in({4, 5, 6, 7}) & (pl.col("column") <= 6))
+            .then((pl.col("row_as_num") - 4) * 6 + pl.col("column") + 48)
+            .when(pl.col("row_as_num").is_in({4, 5, 6, 7}) & (pl.col("column") > 6))
+            .then((pl.col("row_as_num") - 4) * 6 + pl.col("column") - 6 + 72)
+            .alias("row_id")
+        )
+        genotypes = genotypes.filter(pl.col("genotype").is_in(utils.DEFAULT_GENOTYPES))
 
         # make half size if image is old full resolution
         if main_data.shape[0] == 1080:
@@ -191,8 +239,8 @@ def analyze(files):
 
         # clear out timestamp
         grey_float[520:, :320] = (
-            np.mean(grey_float[:520, :])    * 720 * 520 +
-            np.mean(grey_float[520:, 320:]) * 400 * 20
+            np.mean(grey_float[:520, :]) * 720 * 520
+            + np.mean(grey_float[520:, 320:]) * 400 * 20
         ) / 382400
         grey_float = normalize(grey_float)
         # plt.figure(dpi=175)
@@ -210,22 +258,30 @@ def analyze(files):
         # plt.show()
 
         # find average value for all arenas
-        filled_arenas = genotypes["row_id"].tolist()
+        filled_arenas = genotypes["row_id"].to_list()
         filled_arena_coords = np.zeros_like(grey_float, dtype=bool)
         for filled_arena in filled_arenas:
             filled_arena_coords |= utils.get_arena_coords(arena_map, filled_arena)
-        masked_filled_arenas = np.ma.masked_array(grey_float, mask=np.logical_not(filled_arena_coords))
+        masked_filled_arenas = np.ma.masked_array(
+            grey_float, mask=np.logical_not(filled_arena_coords)
+        )
         filled_arena_mean = masked_filled_arenas.mean()
 
         # for each arena
-        arena_mean_comparisons = {"ARENA": [], "percent_difference": []}
+        arena_mean_comparisons = {"arena": [], "percent_difference": []}
         for i in filled_arenas:
             arena_coords = utils.get_arena_coords(arena_map, i)
-            masked_arena = np.ma.masked_array(grey_float, mask=np.logical_not(arena_coords))
-            arena_mean_comparisons["ARENA"].append(i)
-            arena_mean_comparisons["percent_difference"].append(((masked_arena.mean() / filled_arena_mean) - 1.0) * 100)
-        mean_comparison_data = pd.DataFrame(arena_mean_comparisons)
-        analyzed_data["percent_difference"][prefix] = utils.attach_genotypes(mean_comparison_data, genotypes)
+            masked_arena = np.ma.masked_array(
+                grey_float, mask=np.logical_not(arena_coords)
+            )
+            arena_mean_comparisons["arena"].append(i)
+            arena_mean_comparisons["percent_difference"].append(
+                ((masked_arena.mean() / filled_arena_mean) - 1.0) * 100
+            )
+        mean_comparison_data = pl.DataFrame(arena_mean_comparisons)
+        analyzed_data["percent_difference"][prefix_name] = utils.attach_genotypes(
+            mean_comparison_data, genotypes
+        )
 
         # arena_only = grey_float.copy()
         # arena_only[np.logical_not(arena_coords)] = 0
@@ -247,12 +303,19 @@ def analyze(files):
 
     return analyzed_data
 
-main_data = analyze(main_files)
-print(main_data)
 
-# masked_plot = np.ma.masked_array(main_data.copy(), mask=arena_coords)
-# masked_plot[np.logical_not(arena_coords)] = 0.0
-# plt.imshow(main_data, cmap="viridis")
-# plt.imshow(masked_plot, cmap="binary")
-# plt.axis("off")
-# plt.show()
+main_data = analyze(main_files)
+for prefix_name in main_files.keys():
+    prism_data = utils.column_data(
+        main_data["percent_difference"][prefix_name], "percent_difference"
+    )
+    with open(
+        os.path.join(
+            "data",
+            "developmental_delay",
+            "output",
+            prefix_name + "_PERCENT-DIFFERENCE.csv",
+        ),
+        "w",
+    ) as f:
+        prism_data.write_csv(f)

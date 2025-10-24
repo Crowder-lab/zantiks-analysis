@@ -228,24 +228,28 @@ def find_crop_coordinates(
 
 
 def attach_genotypes(data: pl.DataFrame, genotypes: pl.DataFrame) -> pl.DataFrame:
-    attached_data = data.join(genotypes, on="ARENA", how="left")
-    attached_data = attached_data.dropna(subset="genotype")
-    attached_data = attached_data.loc[attached_data["genotype"] != "<Excluded>"]
-    g = ["genotype"]
-    print(g.extend(data.columns.tolist()))
-    attached_data = attached_data[["genotype"].extend(data.columns.tolist())]
+    # attach and filter
+    attached_data = data.join(genotypes, on="arena", how="left")
+    attached_data = attached_data.drop_nulls("genotype")
+    attached_data = attached_data.filter(pl.col("genotype") != "<Excluded>")
+
+    # put genotypes first
+    cols = ["genotype"]
+    cols.extend(data.columns)
+    attached_data = attached_data.select(cols)
 
     attached_genotypes = attached_data["genotype"].unique().to_list()
     if all(map(lambda s: s in DEFAULT_GENOTYPES, attached_genotypes)):
         # make genotypes be HOM, HET, WT if that seems right
-        # this sucks so bad in python
-        df = (
-            attached_data.set_index("genotype")
-            .reindex(pl.Series(DEFAULT_GENOTYPES))
-            .reset_index()
-        )
+        # TODO: trying to do tidyr's `complete`. this sucks so bad in python
+        df = attached_data
     else:
         # otherwise leave them like they are
         df = attached_data
 
-    return df.sort_values("genotype")
+    return df.sort(by="genotype")
+
+
+def column_data(data: pl.DataFrame, values_column: str):
+    data_wide = data.pivot(on="genotype", index="arena", values=values_column)
+    return data_wide
