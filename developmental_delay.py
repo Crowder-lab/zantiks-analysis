@@ -27,22 +27,6 @@ wildtype_only_names = set(wildtype_files.keys()).difference(set(main_files.keys(
 wildtype_should_be_analyzed = wildtype_exists and len(wildtype_only_names) > 0
 
 
-# genotype rearrangement helper
-def new_row_id(x) -> int:
-    row, col = x
-    if row in {0, 1, 2, 3} and col <= 6:
-        return row * 6 + col
-    elif row in {0, 1, 2, 3} and col > 6:
-        return row * 6 + col - 6 + 24
-    elif row in {4, 5, 6, 7} and col <= 6:
-        return (row - 4) * 6 + col + 48
-    elif row in {4, 5, 6, 7} and col > 6:
-        return (row - 4) * 6 + col - 6 + 72
-    else:
-        # TODO: error
-        pass
-
-
 # functions for image processing
 def normalize(stats_from: NDArray, to_normalize: NDArray | None = None) -> NDArray:
     """
@@ -209,6 +193,7 @@ def analyze(files):
         genotypes = utils.load_genotypes(
             group["genotypes"], group["fish_used"], "across"
         )
+
         # arenas are in a really ridiculous order--rearrange
         genotypes = genotypes.with_columns(
             (
@@ -216,17 +201,23 @@ def analyze(files):
                 - 65
             ).alias("row_as_num")
         )
+        # fmt: off
         genotypes = genotypes.with_columns(
             pl.when(pl.col("row_as_num").is_in({0, 1, 2, 3}) & (pl.col("column") <= 6))
-            .then(pl.col("row_as_num") * 6 + pl.col("column"))
-            .when(pl.col("row_as_num").is_in({0, 1, 2, 3}) & (pl.col("column") > 6))
-            .then(pl.col("row_as_num") * 6 + pl.col("column") - 6 + 24)
-            .when(pl.col("row_as_num").is_in({4, 5, 6, 7}) & (pl.col("column") <= 6))
-            .then((pl.col("row_as_num") - 4) * 6 + pl.col("column") + 48)
-            .when(pl.col("row_as_num").is_in({4, 5, 6, 7}) & (pl.col("column") > 6))
-            .then((pl.col("row_as_num") - 4) * 6 + pl.col("column") - 6 + 72)
-            .alias("row_id")
+              .then(pl.col("row_as_num") * 6 + pl.col("column"))
+
+              .when(pl.col("row_as_num").is_in({0, 1, 2, 3}) & (pl.col("column") >  6))
+              .then(pl.col("row_as_num") * 6 + pl.col("column") - 6 + 24)
+
+              .when(pl.col("row_as_num").is_in({4, 5, 6, 7}) & (pl.col("column") <= 6))
+              .then((pl.col("row_as_num") - 4) * 6 + pl.col("column") + 48)
+
+              .when(pl.col("row_as_num").is_in({4, 5, 6, 7}) & (pl.col("column") >  6))
+              .then((pl.col("row_as_num") - 4) * 6 + pl.col("column") - 6 + 72)
+
+              .alias("row_id")
         )
+        # fmt: on
         genotypes = genotypes.filter(pl.col("genotype").is_in(utils.DEFAULT_GENOTYPES))
 
         # make half size if image is old full resolution
@@ -265,7 +256,7 @@ def analyze(files):
         masked_filled_arenas = np.ma.masked_array(
             grey_float, mask=np.logical_not(filled_arena_coords)
         )
-        filled_arena_mean = masked_filled_arenas.mean()
+        filled_arena_mean = masked_filled_arenas.sum() / len(filled_arenas)
 
         # for each arena
         arena_mean_comparisons = {"arena": [], "percent_difference": []}
@@ -276,7 +267,8 @@ def analyze(files):
             )
             arena_mean_comparisons["arena"].append(i)
             arena_mean_comparisons["percent_difference"].append(
-                ((masked_arena.mean() / filled_arena_mean) - 1.0) * 100
+                # ((masked_arena.sum() / filled_arena_mean) - 1.0) * 100
+                masked_arena.sum()
             )
         mean_comparison_data = pl.DataFrame(arena_mean_comparisons)
         analyzed_data["percent_difference"][prefix_name] = utils.attach_genotypes(
@@ -319,3 +311,54 @@ for prefix_name in main_files.keys():
         "w",
     ) as f:
         prism_data.write_csv(f)
+
+# combine data (including wildtypes if possible)
+if wildtype_should_be_analyzed:
+    wildtype_data = analyze(wildtype_files)
+    all_names = set(wildtype_files.keys()) | set(main_files.keys())
+
+    combined_wildtype = (
+        pl.concat(
+            [
+                df.with_columns(id=pl.lit(name))
+                for name, df in wildtype_data["percent_difference"].items()
+            ],
+            how="vertical",
+        )
+        .filter(pl.col("genotype") == "WT")
+        .filter(pl.col("id").is_in(wildtype_only_names))
+    )
+    combined_main = pl.concat(
+        [
+            df.with_columns(id=pl.lit(name))
+            for name, df in main_data["percent_difference"].items()
+        ],
+        how="vertical",
+    )
+    all_percent_difference_data = pl.concat(
+        (combined_wildtype, combined_main), how="vertical"
+    )
+else:
+    all_names = set(main_files.keys())
+
+    all_percent_difference_data = pl.concat(
+        [
+            df.with_columns(id=pl.lit(name))
+            for name, df in main_data["percent_difference"].items()
+        ],
+        how="vertical",
+    )
+
+# analyze and save combined data
+for_prism = utils.add_numbering(all_percent_difference_data, all_names, "genotype")
+prism_data = utils.column_data(for_prism, "percent_difference")
+with open(
+    os.path.join(
+        "data",
+        "developmental_delay",
+        "output",
+        "combined_PERCENT-DIFFERENCE.csv",
+    ),
+    "w",
+) as f:
+    prism_data.write_csv(f)

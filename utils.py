@@ -1,6 +1,7 @@
 import itertools
 import os
 import string
+from typing import Iterable
 
 import cv2
 import numpy as np
@@ -253,3 +254,31 @@ def attach_genotypes(data: pl.DataFrame, genotypes: pl.DataFrame) -> pl.DataFram
 def column_data(data: pl.DataFrame, values_column: str):
     data_wide = data.pivot(on="genotype", index="arena", values=values_column)
     return data_wide
+
+
+def add_numbering(
+    data: pl.DataFrame, id_values: Iterable[str], grouping_column: str
+) -> pl.DataFrame:
+    # id_values needs an index method
+    id_values = tuple(id_values)
+    numbered = (
+        data.drop_nulls("arena")
+        # convert each id to int
+        .with_columns(
+            pl.col("id")
+            .map_elements(lambda s: id_values.index(s), return_dtype=pl.Int32)
+            .alias("id_num")
+        )
+        .sort(("id_num", "arena"))
+        # arenas are 1-indexed
+        .with_columns((pl.col("id_num") * 96 + pl.col("arena") - 1).alias("unique_id"))
+        .with_columns(
+            pl.col("unique_id")
+            .rank(method="dense")
+            .over(grouping_column)
+            .alias("numbering")
+        )
+        .drop(("id", "arena", "id_num", "unique_id"))
+        .rename({"numbering": "arena"})
+    )
+    return numbered
