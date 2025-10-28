@@ -49,7 +49,9 @@ def save_arena_plot(data, arena: int, title: str, save_to: str) -> None:
     plt.imshow(cropped_mask, cmap="binary")
     plt.axis("off")
     plt.savefig(save_to, dpi=500, bbox_inches="tight")
-    plt.show()
+    plt.show(block=False)
+    plt.pause(0.1)
+    plt.close()
 
 
 def save_whole_plot(data, mask, title: str, save_to: str) -> None:
@@ -64,7 +66,9 @@ def save_whole_plot(data, mask, title: str, save_to: str) -> None:
     plt.gca().set_yticklabels([])
     plt.box(on=True)
     plt.savefig(save_to, dpi=500, bbox_inches="tight")
-    plt.show()
+    plt.show(block=False)
+    plt.pause(0.1)
+    plt.close()
 
 
 def analyze(files):
