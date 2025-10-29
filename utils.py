@@ -8,7 +8,7 @@ import numpy as np
 import polars as pl
 from numpy.typing import NDArray
 
-DEFAULT_GENOTYPES = {"WT", "HET", "HOM"}
+DEFAULT_GENOTYPES = ("WT", "HET", "HOM")
 PRISM_MAX_SEQUENCE = range(1, 257)
 
 
@@ -241,19 +241,24 @@ def attach_genotypes(data: pl.DataFrame, genotypes: pl.DataFrame) -> pl.DataFram
 
     attached_genotypes = attached_data["genotype"].unique().to_list()
     if all(map(lambda s: s in DEFAULT_GENOTYPES, attached_genotypes)):
-        # make genotypes be HOM, HET, WT if that seems right
+        # make genotypes be WT, HET, HOM if that seems right
         # TODO: trying to do tidyr's `complete`. this sucks so bad in python
-        df = attached_data
+        genotype_enum = pl.Enum(DEFAULT_GENOTYPES)
+        df = attached_data.cast({"genotype": genotype_enum})
     else:
         # otherwise leave them like they are
-        df = attached_data
+        genotype_enum = pl.Enum(attached_genotypes)
+        df = attached_data.cast({"genotype": genotype_enum})
 
     return df.sort(by="genotype")
 
 
 def column_data(data: pl.DataFrame, values_column: str):
-    data_wide = data.pivot(on="genotype", index="arena", values=values_column)
-    return data_wide
+    genotype_enum = data["genotype"].dtype
+    data_wide = data.pivot(on="genotype", index="arena", values=values_column).drop(
+        "arena"
+    )
+    return data_wide.select(genotype_enum.categories.to_list())
 
 
 def add_numbering(
