@@ -233,7 +233,8 @@ def analyze(files):
             np.mean(grey_float[:520, :]) * 720 * 520
             + np.mean(grey_float[520:, 320:]) * 400 * 20
         ) / 382400
-        grey_float = normalize(grey_float)
+        grey_float = 1.0 - normalize(grey_float)
+        # print(grey_float.min(), grey_float.max(), grey_float.mean())
         # plt.figure(dpi=175)
         # plt.title(prefix_name)
         # plt.imshow(grey_float, cmap="magma")
@@ -267,8 +268,7 @@ def analyze(files):
             )
             arena_mean_comparisons["arena"].append(i)
             arena_mean_comparisons["percent_difference"].append(
-                # ((masked_arena.sum() / filled_arena_mean) - 1.0) * 100
-                masked_arena.sum()
+                ((masked_arena.sum() / filled_arena_mean) - 1.0) * 100
             )
         mean_comparison_data = pl.DataFrame(arena_mean_comparisons)
         analyzed_data["percent_difference"][prefix_name] = utils.attach_genotypes(
