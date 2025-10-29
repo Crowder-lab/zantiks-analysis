@@ -242,9 +242,15 @@ def attach_genotypes(data: pl.DataFrame, genotypes: pl.DataFrame) -> pl.DataFram
     attached_genotypes = attached_data["genotype"].unique().to_list()
     if all(map(lambda s: s in DEFAULT_GENOTYPES, attached_genotypes)):
         # make genotypes be WT, HET, HOM if that seems right
-        # TODO: trying to do tidyr's `complete`. this sucks so bad in python
         genotype_enum = pl.Enum(DEFAULT_GENOTYPES)
         df = attached_data.cast({"genotype": genotype_enum})
+        cols = df.columns
+        for genotype in DEFAULT_GENOTYPES:
+            if genotype not in df["genotype"]:
+                genotype_row = pl.DataFrame(
+                    {col: None if col != "genotype" else genotype for col in cols}
+                )
+                df = pl.concat([df, genotype_row], how="vertical")
     else:
         # otherwise leave them like they are
         genotype_enum = pl.Enum(attached_genotypes)
