@@ -72,7 +72,8 @@ analyze <- function(files) {
       mutate(next_next_next_turn = lead(next_next_turn))
 
     spontaneous_alternation_percent_data <- turn_data %>%
-      filter(!is.na(next_next_zone)) %>%
+      slice(-n()) %>%
+      slice(-n()) %>%
       mutate(triad = paste0(ZONE, next_zone, next_next_zone)) %>%
       count(triad, name = "triad_count") %>%
       summarise(
@@ -82,7 +83,9 @@ analyze <- function(files) {
       )
 
     tetragram_data <- turn_data %>%
-      filter(!is.na(next_next_next_turn)) %>%
+      slice(-n()) %>%
+      slice(-n()) %>%
+      slice(-n()) %>%
       mutate(tetragram = paste0(
         turn_direction,
         next_turn,
@@ -91,8 +94,9 @@ analyze <- function(files) {
       )) %>%
       count(tetragram, name = "tetragram_count")
 
-    turn_count_data <- tetragram_data %>%
-      summarise(turn_count = sum(tetragram_count) + 3)
+    turn_count_data <- turn_data %>%
+      count(ZONE, name = "zone_count") %>%
+      summarise(turn_count = sum(zone_count) - 1)
 
     alternation_percent_data <- tetragram_data %>%
       summarise(
