@@ -67,11 +67,12 @@ analyze <- function(files) {
       # add distance in
       distance_xy <- annotated_xy %>%
         arrange(ARENA, phase_id, RUNTIME) %>%
-        mutate(distance_step = sqrt((x - lag(x))^2 + (y - lag(y))^2))
+        mutate(distance_step = sqrt((x - lag(x))^2 + (y - lag(y))^2)) %>%
+        # first startle has missing data before
+        mutate(distance_step = ifelse((phase_id == "STARTLE_1") & (relative_bin <= 0), NA, distance_step))
 
       # collapse each phase into the sum
       averaged_xy <- distance_xy %>%
-        filter(phase_id != "STARTLE_1") %>% # first startle has missing data before
         group_by(ARENA, relative_bin) %>%
         summarise(distance_step = mean(distance_step, na.rm = TRUE)) %>%
         ungroup()
@@ -100,7 +101,6 @@ analyze <- function(files) {
           !!sym(startle_type) := distance_step[relative_bin == 100]
         )
       analyzed_data[["response probability"]][[prefix_name]][[startle_type]] <- distance_xy %>%
-        filter(phase_id != "STARTLE_1") %>%
         group_by(ARENA, phase_id, relative_bin) %>%
         summarise(distance_step = mean(distance_step, na.rm = TRUE)) %>%
         ungroup() %>%
