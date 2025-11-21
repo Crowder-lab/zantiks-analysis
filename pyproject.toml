@@ -5,10 +5,12 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "marimo[recommended]>=0.18.0",
     "matplotlib>=3.10.6",
     "numpy>=2.2.6",
     "opencv-python-headless>=4.12.0.88",
     "polars>=1.34.0",
     "scipy>=1.16.2",
+    "seaborn>=0.13.2",
     "tqdm>=4.67.1",
 ]
