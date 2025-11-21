@@ -1,6 +1,5 @@
 #!/usr/bin/env Rscript
-
-
+print("ymaze_15.R")
 # load library
 source("utils.R")
 

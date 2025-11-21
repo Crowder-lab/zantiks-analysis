@@ -1,4 +1,5 @@
 #!/usr/bin/env Rscript
+print("distance_traveled.R")
 source("utils.R")
 
 

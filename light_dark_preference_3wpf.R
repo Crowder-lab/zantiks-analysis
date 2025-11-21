@@ -1,6 +1,5 @@
 #!/usr/bin/env Rscript
-
-
+print("light_dark_preference_3wpf.R")
 # load library
 source("utils.R")
 

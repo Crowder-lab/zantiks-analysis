@@ -1,6 +1,5 @@
 #!/usr/bin/env Rscript
-
-
+print("mirror_biting.R")
 # load library
 source("utils.R")
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-
+print("light_dark_preference_6dpf.R")
 # load library
 source("utils.R")
 

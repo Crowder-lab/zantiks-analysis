@@ -1,6 +1,5 @@
 #!/usr/bin/env Rscript
-
-
+print("social_preference.R")
 # load library
 source("utils.R")
 
